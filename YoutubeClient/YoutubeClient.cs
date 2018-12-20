@@ -15,6 +15,7 @@ using Newtonsoft.Json.Linq;
 using AngleSharp.Dom.Html;
 using AngleSharp.Dom;
 using AngleSharp.Extensions;
+using System.Diagnostics;
 
 namespace YoutubeApi
 {
@@ -979,6 +980,7 @@ namespace YoutubeApi
         /// </summary>
         public static bool TryParseVideoId(string videoUrl, out string videoId)
         {
+            Debug.WriteLine("TryParseVideoId(...)");
             videoId = default(string);
 
             if (videoUrl.IsBlank())
@@ -1027,6 +1029,8 @@ namespace YoutubeApi
         /// <inheritdoc />
         public async Task<MediaStreamInfoSet> GetVideoMediaStreamInfosAsync(string videoId)
         {
+            Debug.WriteLine("GetVideoMediaStreamInfosAsync(...)");
+
             //videoId.GuardNotNull(nameof(videoId));
 
             if (!ValidateVideoId(videoId))
@@ -1228,6 +1232,8 @@ namespace YoutubeApi
 
         private async Task<PlayerResponseParser> GetPlayerResponseParserAsync(string videoId, bool ensureIsPlayable = false)
         {
+            Debug.WriteLine("GetPlayerResponseParserAsync(...)");
+
             // Get player response parser via video info (this works for most videos)
             var videoInfoParser = await GetVideoInfoParserAsync(videoId).ConfigureAwait(false);
             var playerResponseParser = videoInfoParser.GetPlayerResponse();
@@ -1274,6 +1280,8 @@ namespace YoutubeApi
 
         private async Task<VideoWatchPageParser> GetVideoWatchPageParserAsync(string videoId)
         {
+            Debug.WriteLine("GetVideoWatchPageParserAsync(...)");
+
             var url = $"https://www.youtube.com/watch?v={videoId}&disable_polymer=true&bpctr=9999999999&hl=en";
             var raw = await httpClient.GetStringAsync(url).ConfigureAwait(false);
 
@@ -1283,6 +1291,7 @@ namespace YoutubeApi
 
         private async Task<VideoInfoParser> GetVideoInfoParserAsync(string videoId, string el = "embedded")
         {
+            Debug.WriteLine("GetVideoInfoParserAsync(...)");
             // This parameter does magic and a lot of videos don't work without it
             var eurl = $"https://youtube.googleapis.com/v/{videoId}".UrlEncode();
 

@@ -312,7 +312,7 @@ namespace VlcTest
                 IsStopped = true;
 
                 CloseClientProccess();
-                var _vlcopts = new string[] {"--extraintf=logger", "--verbose=0" };
+                var _vlcopts = new string[] {"--extraintf=logger", "--verbose=0" , "--network-caching=1000" };
                 string vlcopts = string.Join(" ", _vlcopts);
                 var args = new string [] { "--channel=\"" + address + "\"",
                                            "--media=\"" + fileName + "\"",
@@ -829,6 +829,12 @@ namespace VlcTest
                     }
                     else if (command == "Position")
                     {
+                        //var val1 = "";
+                        //if (args?.Length > 1)
+                        //{
+                        //    val1 = args[1]?.ToString();
+                        //}
+                        //owner.Log("Position " + val0 + " " + val1);
 
                         if (float.TryParse(val0, out mediaPosition))
                         {

@@ -37,21 +37,19 @@ namespace VlcPlayer
     {
         private static Logger logger = LogManager.GetCurrentClassLogger();
 
-        private readonly App app = null;
         private readonly Dispatcher dispatcher = null;
-        public PlaybackHost(App _app)
+        public PlaybackHost()
         {
-            this.app = _app;
-            this.dispatcher = this.app.Dispatcher;
 
-            Session = new PlaybackSession(App.CommandLineOptions);
+            this.dispatcher = Dispatcher.CurrentDispatcher;// this.app.Dispatcher;
+
+            Session = new PlaybackSession(Program.CommandLineOptions);
 
 
             this.communicationClient = new CommunicationClient(this);
             this.videoProvider = new VideoProvider(this);
             this.audioProvider = new AudioProvider(this);
 
-            VideoVisibility = (App.parentProcess == null) ? Visibility.Visible : Visibility.Collapsed;
             Session.PlaybackState = PlaybackState.Created;
 
         }
@@ -67,6 +65,22 @@ namespace VlcPlayer
 
         private bool loopPlayback = false;
 
+        private VideoWindow videoWindow = null;
+        public VideoWindow VideoWindow
+        {
+            get
+            {
+                if (videoWindow == null)
+                {
+                    videoWindow = new VideoWindow
+                    {
+                        DataContext = this,
+                    };
+                }
+                return videoWindow;
+            }
+        }
+
         private PlaybackSession session;
         public PlaybackSession Session
         {
@@ -75,17 +89,6 @@ namespace VlcPlayer
             {
                 session = value;
                 OnPropertyChanged(nameof(Session));
-            }
-        }
-
-        private Visibility videoVisibility = Visibility.Collapsed;
-        public Visibility VideoVisibility
-        {
-            get { return videoVisibility; }
-            set
-            {
-                videoVisibility = value;
-                OnPropertyChanged(nameof(VideoVisibility));
             }
         }
 
@@ -160,7 +163,7 @@ namespace VlcPlayer
                     quitCommand = new PlaybackCommand(p =>
                     {
                         this.Close();
-                        Environment.Exit(0);
+                        //Environment.Exit(0);
                     });
                 }
                 return quitCommand;
@@ -172,6 +175,11 @@ namespace VlcPlayer
         {
             try
             {
+                if (Program.ParentProcess == null)
+                {
+                    VideoWindow.Show();
+                }
+
                 Session.PlaybackState = PlaybackState.Initializing;
 
                 //var options = new string[] { ":audio-visual=visual", ":effect-list=spectrum" };
@@ -179,8 +187,8 @@ namespace VlcPlayer
                 // var vlcopts = new string[] { "input-repeat=65535" };
                 //var opts = new string[] { "--aout=\"waveout\"" };
 
-                var opts = new string[] { "--extraintf=logger", "--verbose=0" };
-                this.mediaPlayer = CreatePlayer(App.VlcLibDirectory, opts);
+                var opts = new string[] { "--extraintf=logger", "--verbose=0", "--network-caching=1000" };
+                this.mediaPlayer = CreatePlayer(Program.VlcLibDirectory, opts);
                 //this.mediaPlayer = CreatePlayer(App.VlcLibDirectory);
 
                 videoProvider.Setup();
@@ -194,12 +202,13 @@ namespace VlcPlayer
                 }
 
                 playbackThread = new Thread(PlaybackProc);
+                playbackThread.IsBackground = true;
                 playbackThread.Start();
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 logger.Fatal(ex);
-                this.Dispose();
+                this.CleanUp();
 
                 throw;
             }
@@ -229,6 +238,7 @@ namespace VlcPlayer
             player.Stopped += MediaPlayer_Stopped;
 
             player.PositionChanged += MediaPlayer_PositionChanged;
+            //player.TimeChanged += Player_TimeChanged;
             player.LengthChanged += MediaPlayer_LengthChanged;
 
             player.AudioDevice += Player_AudioDevice;
@@ -244,8 +254,6 @@ namespace VlcPlayer
             return player;
 
         }
-
-
 
 
         class InternalCommand
@@ -294,7 +302,7 @@ namespace VlcPlayer
             syncEvent.Set();
         }
 
-        public event Action<object> Closed;     
+        public event Action<object> Closed;
         private void OnClosed(object obj)
         {
             logger.Debug("OnClosed(...)");
@@ -334,7 +342,6 @@ namespace VlcPlayer
                         logger.Error(ex);
                     }
 
-
                     syncEvent.WaitOne(300);
                     if (closing)
                     {
@@ -342,18 +349,15 @@ namespace VlcPlayer
                     }
                 }
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
                 logger.Error(ex);
 
             }
             finally
             {
+                CleanUp();
 
-                OnClosed(null);
-
-                //Dispose();
-                //Environment.Exit(0);
             }
 
             logger.Trace("PlaybackProc() END");
@@ -517,6 +521,8 @@ namespace VlcPlayer
                 case "EncounteredError":
                     {
                         Session.PlaybackState = PlaybackState.Failed;
+                        logger.Error("EncounteredError");
+
                         //...
                     }
                     break;
@@ -628,17 +634,38 @@ namespace VlcPlayer
                     playbackStats.ReadBytes = stats.ReadBytes;
                     playbackStats.DisplayedPictures = stats.DisplayedPictures;
                     playbackStats.PlayedAudioBuffers = stats.PlayedAudioBuffers;
+
                 }
 
-                if (media.State == MediaStates.Playing)
+                if (media.State == MediaStates.Playing || media.State == MediaStates.Paused)
                 {
-                    PostToClientAsync("Position", new object[] { Session?.Position });
+                    float pos = float.NaN;
+                    if (mediaPlayer != null)
+                    {
+                        pos = mediaPlayer.Position;
+                    }
+
+                    if (!float.IsNaN(pos))
+                    {
+                        if (Session.Position != pos)
+                        {
+                            Session.Position = pos;
+
+                            var total = media.Duration;
+                            var current = TimeSpan.FromMilliseconds(total.TotalMilliseconds * pos);
+
+                            PlaybackTiming = current.ToString("hh\\:mm\\:ss") + " / " + total.ToString("hh\\:mm\\:ss");
+
+                            PostToClientAsync("Position", new object[] { Session.Position, current, total });
+                        }
+                    }
+                }
+                else
+                {
+                    //...
                 }
 
-                //Session.Stats = "ReadBytes: " + stats.ReadBytes + "\r\n" +
-                //        "DemuxReadBytes: " + stats.DemuxReadBytes + "\r\n" +
-                //        "DisplayedPictures: " + stats.DisplayedPictures + "\r\n" +
-                //        "PlayedAudioBuffers: " + stats.PlayedAudioBuffers;
+
             }
         }
 
@@ -674,6 +701,7 @@ namespace VlcPlayer
 
         private async Task<string> GetMrlAsync(string mediaLink, CancellationToken cancellationToken)
         {
+            logger.Debug("GetMrlAsync(...) " + mediaLink);
 
             string mri = "";
 
@@ -690,18 +718,32 @@ namespace VlcPlayer
                             youtube?.Dispose();
                         });
 
-                        var streamInfo = await youtube.GetVideoMediaStreamInfosAsync(videoId);
-                        if (streamInfo != null)
+                        YoutubeApi.MediaStreamInfo streamInfo = null;
+                        var streamInfoSet = await youtube.GetVideoMediaStreamInfosAsync(videoId);
+                        if (streamInfoSet != null)
                         {
-                            var moreQuality = streamInfo.Muxed.OrderByDescending(s => s.VideoQuality).FirstOrDefault();
-
-                            if (moreQuality != null)
+                            if (streamInfoSet.Muxed?.Count > 0)
                             {
-                                mri = moreQuality.Url;
-
+                                streamInfo = streamInfoSet.Muxed.OrderByDescending(s => s.VideoQuality).FirstOrDefault();
+                            }
+                            else if (streamInfoSet.Video?.Count > 0)
+                            {
+                                streamInfo = streamInfoSet.Video.OrderByDescending(s => s.VideoQuality).FirstOrDefault();
+                            }
+                            else if (streamInfoSet.Audio?.Count > 0)
+                            {
+                                streamInfo = streamInfoSet.Audio.OrderByDescending(s => s.Bitrate).FirstOrDefault();
                             }
                         }
 
+                        if (streamInfo != null)
+                        {
+                            mri = streamInfo.Url;
+                        }
+                        else
+                        {
+                            throw new Exception("Unsupported youtube link!");
+                        }                    
                     }
                 }
                 else
@@ -733,7 +775,7 @@ namespace VlcPlayer
         {
             logger.Trace("MediaPlayer.EncounteredError(...) ");
 
-           // Session.PlaybackState = PlaybackState.Failed;
+            // Session.PlaybackState = PlaybackState.Failed;
 
             EnqueueCommand("EncounteredError");
         }
@@ -816,19 +858,24 @@ namespace VlcPlayer
         {
             logger.Debug("PositionChanged(...) " + e.NewPosition);
 
-            Session.Position = e.NewPosition;
-            var media = mediaPlayer.GetMedia();
-            if (media != null)
-            {
-                var total = media.Duration;
-                var current = TimeSpan.FromMilliseconds(total.TotalMilliseconds * e.NewPosition);
+            //Session.Position = e.NewPosition;
+            //var media = mediaPlayer.GetMedia();
+            //if (media != null)
+            //{
+            //    var total = media.Duration;
+            //    var current = TimeSpan.FromMilliseconds(total.TotalMilliseconds * e.NewPosition);
 
-                PlaybackTiming = current.ToString("hh\\:mm\\:ss") + " / " + total.ToString("hh\\:mm\\:ss");
-            }
+            //    PlaybackTiming = current.ToString("hh\\:mm\\:ss") + " / " + total.ToString("hh\\:mm\\:ss");
+            //}
 
-            // PostMessage("Position", new object[] { e.NewPosition });
+            //// PostMessage("Position", new object[] { e.NewPosition });
 
         }
+
+        //private void Player_TimeChanged(object sender, VlcMediaPlayerTimeChangedEventArgs e)
+        //{
+        //    logger.Debug("Player_TimeChanged(...) " + e.NewTime);
+        //}
 
         private void MediaPlayer_LengthChanged(object sender, VlcMediaPlayerLengthChangedEventArgs e)
         {
@@ -864,23 +911,45 @@ namespace VlcPlayer
 
         public void Close()
         {
+            logger.Debug("PlaybackHost::Close(...)");
 
-            logger.Debug("Close(...)");
-
-            closing = true;
-            syncEvent.Set();
-
-            if (!playbackThread.Join(3000))
+            Task.Run(() =>
             {
-                playbackThread.Abort();
-            }
- 
+                try
+                {
+                    closing = true;
+                    syncEvent.Set();
+
+                    if (!playbackThread.Join(3000))
+                    {
+                        Debug.Fail("!playbackThread.Join(3000)");
+                    }
+
+                    //if (!playbackThread.Join(3000))
+                    //{
+                    //    //playbackThread.Interrupt();
+                    //    //playbackThread.Abort();
+                    //    //playbackThread = null;
+                    //}
+                }
+                catch (Exception ex)
+                {
+                    logger.Error(ex);
+                }
+                finally
+                {
+                    OnClosed(dispatcher);
+                }
+            });
+
         }
 
-        public void Dispose()
+        public void CleanUp()
         {
+            //Thread.Sleep(1000000);
+            //throw new Exception("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! CleanUp()");
+            logger.Debug("CleanUp(...)");
             communicationClient?.Close();
-
 
             if (mediaPlayer != null)
             {
@@ -903,8 +972,6 @@ namespace VlcPlayer
             }
 
             videoProvider?.Dispose();
-
-            //Environment.Exit(0);
         }
 
 
@@ -964,6 +1031,12 @@ namespace VlcPlayer
             }
             else if (command == "Position")
             {
+                //string val1 = "";
+                //if (args?.Length > 1)
+                //{
+                //    val1 = args[1]?.ToString();
+                //}
+
                 EnqueueCommand("Position", new[] { val0 });
             }
             else if (command == "Volume")
@@ -1025,31 +1098,22 @@ namespace VlcPlayer
             else if (command == "SwitchVisibilityState")
             {
                 bool visible = false;
-                if(bool.TryParse(val0, out visible ))
+                if (bool.TryParse(val0, out visible))
                 {
                     this.dispatcher.Invoke(() =>
                     {
                         if (visible)
                         {
-                            if (VideoVisibility != Visibility.Visible)
+                            if (VideoWindow.Visibility != Visibility.Visible)
                             {
-                                var videoWindow = app.Windows.OfType<VideoWindow>().FirstOrDefault();
-                                if (videoWindow == null)
-                                {
-                                    videoWindow = new VideoWindow
-                                    {
-                                        DataContext = this,
-                                    };
-                                }
-
-                                VideoVisibility = Visibility.Visible;
+                                VideoWindow.Visibility = Visibility.Visible;
                             }
                         }
                         else
                         {
-                            if (VideoVisibility == Visibility.Visible)
+                            if (VideoWindow.Visibility == Visibility.Visible)
                             {
-                                VideoVisibility = Visibility.Hidden;
+                                VideoWindow.Visibility = Visibility.Hidden;
                             }
                         }
                     });
@@ -1245,6 +1309,7 @@ namespace VlcPlayer
             });
 
             interopBitmap = Session.VideoSource as InteropBitmap;
+
             var _fmt = (fmt == PixelFormats.Bgra32) ?
                 System.Drawing.Imaging.PixelFormat.Format32bppArgb :
                 System.Drawing.Imaging.PixelFormat.Format32bppRgb;
@@ -1527,50 +1592,7 @@ namespace VlcPlayer
         Closed
     }
 
-    public class _BooleanToVisibilityConverter : IValueConverter
-    {
-        public bool IsInverse { get; set; }
-        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            bool visibility = (bool)value;
-            if (IsInverse)
-            {
-                visibility = !visibility;
-            }
 
-            return visibility ? Visibility.Visible : Visibility.Collapsed;
-        }
-
-        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            Visibility visibility = (Visibility)value;
-            if (visibility == Visibility.Collapsed || visibility == Visibility.Hidden)
-            {
-                return false;
-            }
-            else
-            {
-                return true;
-            }
-            //throw new NotImplementedException();
-        }
-    }
-
-    [ValueConversion(typeof(PlaybackState), typeof(Visibility))]
-    public class MediaStateToVisibility : IValueConverter
-    {
-        public object Convert(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            PlaybackState state = (PlaybackState)value;
-            Visibility visibility = (state == PlaybackState.Playing) ? Visibility.Hidden : Visibility.Visible;
-            return visibility;
-        }
-
-        public object ConvertBack(object value, Type targetType, object parameter, System.Globalization.CultureInfo culture)
-        {
-            return DependencyProperty.UnsetValue;
-        }
-    }
     public class PlaybackCommand : System.Windows.Input.ICommand
     {
 

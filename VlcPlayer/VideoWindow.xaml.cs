@@ -29,7 +29,7 @@ namespace VlcPlayer
         private WindowInteropHelper windowHelper = null;
         protected override void OnSourceInitialized(EventArgs e)
         {
-            var parentWindow = App.ParentWindowHandle;
+            var parentWindow = Program.ParentWindowHandle;
             if (parentWindow != IntPtr.Zero)
             {
                 windowHelper = new WindowInteropHelper(this);
@@ -96,41 +96,6 @@ namespace VlcPlayer
         {
             Playback?.IncrBlurRadius(e.Delta);
         }
-
-        private void Window_PreviewKeyDown(object o, KeyEventArgs a)
-        {
-            if (a.Key == Key.P)
-            {
-                //currentMri = @"http://download.blender.org/peach/bigbuckbunny_movies/big_buck_bunny_480p_surround-fix.avi";
-                //currentMri = @"rtsp://192.168.10.187:554/ONVIF/MediaInput?profile=";
-                //var mri = @"https://www.youtube.com/watch?v=moFOUPnWEvo";
-
-                //var mri = App.CurrentDirectory + @"\Test\AV_60Sec_30Fps.mkv";
-                //(this.DataContext as PlaybackHost)?.Play(mri);
-
-            }
-            //else if (a.Key == Key.S)
-            //{
-            //    (this.DataContext as PlaybackHost)?.Stop();
-            //}
-            //else if (a.Key == Key.Q)
-            //{
-            //    (this.DataContext as PlaybackHost)?.Close();
-            //}
-        }
-
-        internal void SwitchVisibilityState()
-        {
-            if (this.Visibility == Visibility.Hidden || this.Visibility == Visibility.Collapsed)
-            {
-                this.Visibility = Visibility.Visible;
-            }
-            else
-            {
-                this.Visibility = Visibility.Hidden;
-            }
-        }
-
     }
 
 

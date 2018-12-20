@@ -9,8 +9,7 @@
         Title="{Binding Session.MediaAddr}"
         Height="435" Width="544"  
         ShowInTaskbar="False" 
-        WindowStartupLocation="CenterScreen"  PreviewKeyDown="Window_PreviewKeyDown" 
-        Visibility="{Binding VideoVisibility, Mode=TwoWay}">
+        WindowStartupLocation="CenterScreen"  >
     <!--Title="{Binding Session.CurrentMri}"-->
 
 
@@ -23,8 +22,6 @@
 
     <Window.Resources>
         <sysControls:BooleanToVisibilityConverter x:Key="BooleanToVisibilityConverter" />
-        <local:MediaStateToVisibility x:Key="MediaStateToVisibility" />
-        <local:_BooleanToVisibilityConverter x:Key="_BooleanToVisibilityConverter" />
 
     </Window.Resources>
 

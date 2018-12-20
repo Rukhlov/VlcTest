@@ -79,7 +79,7 @@ namespace VlcPlayer
 
                 channel.Open();
 
-               // throw new Exception("sdfsdfsdfsf");
+                //throw new Exception("sdfsdfsdfsf");
 
             }
             catch (Exception ex)
@@ -94,16 +94,25 @@ namespace VlcPlayer
         {
             logger.Debug("Channel openned...");
 
-            string name = Id.ToString("N");
-            bool connected = communicationChannel.Connect(name, null);
-
-            if (!connected)
+            try
             {
-                //TODO:
-                //...
+                string name = Id.ToString("N");
+                bool connected = communicationChannel.Connect(name, null);
+
+                if (!connected)
+                {
+                    //TODO:
+                    throw new Exception("Connection error!");
+                }
+
+                logger.Debug("Client id:" + name + " connected " + connected);
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex);
+                playback.Close();
             }
 
-            logger.Debug("Client id:" + name + " conneced " + connected);
         }
 
         private void channel_Faulted(object sender, EventArgs e)
@@ -119,8 +128,7 @@ namespace VlcPlayer
             }
 
             //FATAL
-           // throw new Exception("Communication channel faulted");
-
+            //throw new Exception("Communication channel faulted");
         }
 
 
@@ -140,10 +148,7 @@ namespace VlcPlayer
             }
             finally
             {
-                //playback.Close();
-
-                //  System.Windows.Application.Current.Shutdown();
-                // Environment.Exit(0);
+                playback.Close();
             }
         }
 

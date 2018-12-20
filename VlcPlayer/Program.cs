@@ -11,15 +11,16 @@ using System.Windows;
 
 namespace VlcPlayer
 {
-    public partial class App : Application
+    public class Program
     {
-        private static Logger logger = LogManager.GetCurrentClassLogger();
+        private static Logger logger = null;//LogManager.GetCurrentClassLogger();
 
         [STAThread]
         public static void Main(string[] args)
         {
             try
             {
+                logger = LogManager.GetCurrentClassLogger();
                 var allocConsole = logger?.Factory?.Configuration?.Variables?.FirstOrDefault(v => v.Key == "AllocConsole");
                 if (allocConsole?.Value?.Text == "true")
                 {
@@ -28,6 +29,7 @@ namespace VlcPlayer
 
                 logger.Info("========== START ============");
 
+                bool dispatching = false;
                 PlaybackHost playback = null;
 
                 AppDomain.CurrentDomain.UnhandledException += (o, a) =>
@@ -42,78 +44,80 @@ namespace VlcPlayer
                         {
                             logger.Fatal(ex);
 
-                            if (a.IsTerminating)
-                            {
-                                Environment.FailFast(ex.Message, ex);
-                            }
-                            else
-                            {
-                                playback?.Close();
-                            }
+                            //if (a.IsTerminating)
+                            //{
+                            //    Environment.FailFast(ex.Message, ex);
+                            //}
+                            //else
+                            //{
+                            //    playback?.Close();
+                            //}
 
-                            //int errorCode = ProcessException(ex);
-                            // Environment.Exit(errorCode);
+                            int code = ProcessException(ex);
+                            Environment.Exit(code);
 
                         }
                     }
 
                 };
 
-                var application = new App();
-                application.InitializeComponent();
-
                 CommandLineOptions = ParseCommandLine(args);
 
                 var parentId = CommandLineOptions.ParentId;
                 if (parentId > 0)
                 {
-                    parentProcess = Process.GetProcessById(parentId);
-                    if (parentProcess != null)
+                    ParentProcess = Process.GetProcessById(parentId);
+                    if (ParentProcess != null)
                     {
-                        parentProcess.EnableRaisingEvents = true;
-                        parentProcess.Exited += (o, a) =>
+                        ParentProcess.EnableRaisingEvents = true;
+                        ParentProcess.Exited += (o, a) =>
                         {
                             logger.Warn("Parent process exited...");
                             try
                             {
-                                playback?.Close();
+                                if (dispatching)
+                                {
+                                    playback.Close();
+                                }
+                                else
+                                {
+                                    Environment.Exit(-1);
+                                }                             
                             }
-                            catch (Exception ex) { }
-                            Environment.Exit(-1);
-
-                            //if (playback != null)
-                            //{
-                            //    playback.Close();
-                            //}
-                            //else
-                            //{
-                            //    Environment.Exit(-1);
-                            //}
+                            catch (Exception ex)
+                            {
+                                logger.Error(ex);
+                            }
                         };
                     }
                 }
 
-                playback = new PlaybackHost();// new PlaybackHost(application);
-
-                if (parentProcess == null)
-                {
-                    VideoWindow window = new VideoWindow
-                    {
-                        DataContext = playback,
-                    };
-
-                    window.Show();
-                }
-
-                playback.Setup();
+                playback = new PlaybackHost();
                 playback.Closed += (obj) =>
                 {
-                    playback.Dispose();
-                    Environment.Exit(0);
+                    logger.Debug("playback.Closed(...)");
+
+                    System.Windows.Threading.Dispatcher dispatcher = null;
+                    if (obj != null)
+                    {
+                        dispatcher = obj as System.Windows.Threading.Dispatcher;
+                        if (dispatcher != null)
+                        {
+                            dispatcher.InvokeShutdown();
+                            //dispatcher.BeginInvokeShutdown(System.Windows.Threading.DispatcherPriority.Normal);
+                        }
+                    }
+
+                    if(dispatcher == null)
+                    {
+                        Environment.Exit(-2);
+                    }
                 };
 
-                application.Run();
-
+                playback.Setup();
+               
+                dispatching = true;
+                System.Windows.Threading.Dispatcher.Run();
 
             }
             finally
@@ -139,7 +143,7 @@ namespace VlcPlayer
             return options;
         }
 
-        private int ProcessException(Exception ex)
+        private static int ProcessException(Exception ex)
         {
             logger.Debug("ProcessException(...)");
 
@@ -166,30 +170,43 @@ namespace VlcPlayer
 
 
         public static readonly string CurrentDirectory = new System.IO.FileInfo(System.Reflection.Assembly.GetEntryAssembly().Location).DirectoryName;
-        public static readonly System.IO.DirectoryInfo VlcLibDirectory = new System.IO.DirectoryInfo(System.IO.Path.Combine(App.CurrentDirectory, "libvlc", IntPtr.Size == 4 ? "win-x86" : "win-x64"));
+        public static readonly System.IO.DirectoryInfo VlcLibDirectory = new System.IO.DirectoryInfo(System.IO.Path.Combine(Program.CurrentDirectory, "libvlc", IntPtr.Size == 4 ? "win-x86" : "win-x64"));
 
         public static CommandLineOptions CommandLineOptions { get; private set; }
 
-        internal static Process parentProcess = null;
+        public static Process ParentProcess { get; private set; }
+
         public static IntPtr ParentWindowHandle
         {
             get
             {
                 IntPtr handle = IntPtr.Zero;
-                if (parentProcess != null)
+                if (ParentProcess != null)
                 {
-                    handle = parentProcess.MainWindowHandle;
+                    handle = ParentProcess.MainWindowHandle;
                 }
                 return handle;
             }
         }
     }
+
+    public class CommandLineOptions
+    {
+        [Option("channel")]
+        public string ServerAddr { get; set; }
+
+        [Option("media")]
+        public string FileName { get; set; }
+
+        [Option("parentid")]
+        public int ParentId { get; set; }
+
+        [Option("eventid")]
+        public string SyncEventId { get; set; }
+
+        [Option("vlcopts")]
+        public string VlcOptions { get; set; }
+    }
 }
-
-
-
-
-
-
 
 
