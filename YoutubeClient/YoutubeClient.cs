@@ -511,444 +511,15 @@ namespace YoutubeApi
         }
     }
 
-    internal static class MediaHelper
-    {
-        public static Container ContainerFromString(string str)
-        {
-            if (str.Equals("mp4", StringComparison.OrdinalIgnoreCase))
-                return Container.Mp4;
-
-            if (str.Equals("webm", StringComparison.OrdinalIgnoreCase))
-                return Container.WebM;
-
-            if (str.Equals("3gpp", StringComparison.OrdinalIgnoreCase))
-                return Container.Tgpp;
-
-            // Unknown
-            throw new ArgumentOutOfRangeException(nameof(str), $"Unknown container [{str}].");
-        }
-
-        public static string ContainerToFileExtension(Container container)
-        {
-            // Tgpp gets special treatment
-            if (container == Container.Tgpp)
-                return "3gpp";
-
-            // Convert to lower case string
-            return container.ToString().ToLowerInvariant();
-        }
-        public static AudioEncoding AudioEncodingFromString(string str)
-        {
-            if (str.StartsWith("mp4a", StringComparison.OrdinalIgnoreCase))
-                return AudioEncoding.Aac;
-
-            if (str.StartsWith("vorbis", StringComparison.OrdinalIgnoreCase))
-                return AudioEncoding.Vorbis;
-
-            if (str.StartsWith("opus", StringComparison.OrdinalIgnoreCase))
-                return AudioEncoding.Opus;
-
-            // Unknown
-            throw new ArgumentOutOfRangeException(nameof(str), $"Unknown encoding [{str}].");
-        }
-
-        public static VideoEncoding VideoEncodingFromString(string str)
-        {
-            if (str.StartsWith("mp4v", StringComparison.OrdinalIgnoreCase))
-                return VideoEncoding.Mp4V;
-
-            if (str.StartsWith("avc1", StringComparison.OrdinalIgnoreCase))
-                return VideoEncoding.H264;
-
-            if (str.StartsWith("vp8", StringComparison.OrdinalIgnoreCase))
-                return VideoEncoding.Vp8;
-
-            if (str.StartsWith("vp9", StringComparison.OrdinalIgnoreCase))
-                return VideoEncoding.Vp9;
-
-            if (str.StartsWith("av01", StringComparison.OrdinalIgnoreCase))
-                return VideoEncoding.Av1;
-
-            // Unknown
-            throw new ArgumentOutOfRangeException(nameof(str), $"Unknown encoding [{str}].");
-        }
-    }
-
-
-    internal static class VideoQualityHelper
-    {
-        private static readonly Dictionary<int, VideoQuality> HeightToVideoQualityMap =
-            Enum.GetValues(typeof(VideoQuality)).Cast<VideoQuality>().ToDictionary(
-                v => v.ToString().StripNonDigit().ParseInt(), // High1080 => 1080
-                v => v);
-
-        public static VideoQuality VideoQualityFromHeight(int height)
-        {
-            // Find the video quality by height (highest video quality that has height below or equal to given)
-            var matchingHeight = HeightToVideoQualityMap.Keys.LastOrDefault(h => h <= height);
-
-            // Return video quality
-            return matchingHeight > 0
-                ? HeightToVideoQualityMap[matchingHeight] // if found - return matching quality
-                : HeightToVideoQualityMap.Values.First(); // otherwise return lowest available quality
-        }
-
-        public static VideoQuality VideoQualityFromLabel(string label)
-        {
-            // Strip "p" and framerate to get height (e.g. >1080<p60)
-            var heightStr = label.SubstringUntil("p");
-            var height = heightStr.ParseInt();
-
-            return VideoQualityFromHeight(height);
-        }
-
-        public static string VideoQualityToLabel(VideoQuality quality)
-        {
-            // Convert to string, strip non-digits and add "p"
-            return quality.ToString().StripNonDigit() + "p";
-        }
-
-        public static string VideoQualityToLabel(VideoQuality quality, int framerate)
-        {
-            // Framerate appears only if it's above 30
-            if (framerate <= 30)
-                return VideoQualityToLabel(quality);
-
-            // YouTube rounds framerate to nearest next ten
-            var framerateRounded = (int)Math.Ceiling(framerate / 10.0) * 10;
-            return VideoQualityToLabel(quality) + framerateRounded;
-        }
-    }
-
-    internal  class VideoInfoParser
-    {
-        private readonly IReadOnlyDictionary<string, string> _root;
-
-        public VideoInfoParser(IReadOnlyDictionary<string, string> root)
-        {
-            _root = root;
-        }
-
-        public PlayerResponseParser GetPlayerResponse()
-        {
-            // Extract player response
-            var playerResponseRaw = _root["player_response"];
-            var playerResponseJson = JToken.Parse(playerResponseRaw);
-
-            return new PlayerResponseParser(playerResponseJson);
-        }
-
-        public static VideoInfoParser Initialize(string raw)
-        {
-            var root = UrlEx.SplitQuery(raw);
-            return new VideoInfoParser(root);
-        }
-    }
-
-    internal class PlayerResponseParser
-    {
-        private readonly JToken _root;
-
-        public PlayerResponseParser(JToken root)
-        {
-            _root = root;
-        }
-
-        public bool ParseIsAvailable() => _root.SelectToken("videoDetails") != null;
-
-        public bool ParseIsPlayable()
-        {
-            var playabilityStatusValue = _root.SelectToken("playabilityStatus.status")?.Value<string>();
-            return string.Equals(playabilityStatusValue, "OK", StringComparison.OrdinalIgnoreCase);
-        }
-
-        public string ParseErrorReason() => _root.SelectToken("playabilityStatus.reason")?.Value<string>();
-
-        public string ParseAuthor() => _root.SelectToken("videoDetails.author").Value<string>();
-
-        public string ParseChannelId() => _root.SelectToken("videoDetails.channelId").Value<string>();
-
-        public string ParseTitle() => _root.SelectToken("videoDetails.title").Value<string>();
-
-        public TimeSpan ParseDuration()
-        {
-            var durationSeconds = _root.SelectToken("videoDetails.lengthSeconds").Value<double>();
-            return TimeSpan.FromSeconds(durationSeconds);
-        }
-
-        public IReadOnlyList<string> ParseKeywords() =>
-            _root.SelectToken("videoDetails.keywords").EmptyIfNull().Values<string>().ToArray();
-
-        public bool ParseIsLiveStream() => _root.SelectToken("videoDetails.isLiveContent")?.Value<bool>() == true;
-
-        public string ParseDashManifestUrl()
-        {
-            // HACK: Don't return DASH manifest URL if it's a live stream
-            // I'm not sure how to handle these streams yet
-            if (ParseIsLiveStream())
-                return null;
-
-            return _root.SelectToken("streamingData.dashManifestUrl")?.Value<string>();
-        }
-
-        public string ParseHlsManifestUrl() => _root.SelectToken("streamingData.hlsManifestUrl")?.Value<string>();
-
-        public TimeSpan ParseStreamInfoSetExpiresIn()
-        {
-            var expiresInSeconds = _root.SelectToken("streamingData.expiresInSeconds").Value<double>();
-            return TimeSpan.FromSeconds(expiresInSeconds);
-        }
-
-        public IEnumerable<StreamInfoParser> GetMuxedStreamInfos()
-        {
-            // HACK: Don't return streams if it's a live stream
-            // I'm not sure how to handle these streams yet
-            if (ParseIsLiveStream())
-                return Enumerable.Empty<StreamInfoParser>();
-
-            return _root.SelectToken("streamingData.formats").EmptyIfNull().Select(j => new StreamInfoParser(j));
-        }
-
-        public IEnumerable<StreamInfoParser> GetAdaptiveStreamInfos()
-        {
-            // HACK: Don't return streams if it's a live stream
-            // I'm not sure how to handle these streams yet
-            if (ParseIsLiveStream())
-                return Enumerable.Empty<StreamInfoParser>();
-
-            return _root.SelectToken("streamingData.adaptiveFormats").EmptyIfNull()
-                .Select(j => new StreamInfoParser(j));
-        }
-
-        public IEnumerable<ClosedCaptionTrackInfoParser> GetClosedCaptionTrackInfos()
-            => _root.SelectToken("captions.playerCaptionsTracklistRenderer.captionTracks").EmptyIfNull()
-                .Select(t => new ClosedCaptionTrackInfoParser(t));
-
-        public class StreamInfoParser
-        {
-            private readonly JToken _root;
-
-            public StreamInfoParser(JToken root)
-            {
-                _root = root;
-            }
-
-            public int ParseItag() => _root.SelectToken("itag").Value<int>();
-
-            public string ParseUrl() => _root.SelectToken("url").Value<string>();
-
-            public long ParseContentLength() => _root.SelectToken("contentLength")?.Value<long>() ?? -1;
-
-            public long ParseBitrate() => _root.SelectToken("bitrate").Value<long>();
-
-            public string ParseMimeType() => _root.SelectToken("mimeType").Value<string>();
-
-            public string ParseContainer() => ParseMimeType().SubstringUntil(";").SubstringAfter("/");
-
-            public string ParseAudioEncoding() => ParseMimeType().SubstringAfter("codecs=\"").SubstringUntil("\"")
-                .Split(", ").LastOrDefault(); // audio codec is either the only codec or the second (last) codec
-
-            public string ParseVideoEncoding() => ParseMimeType().SubstringAfter("codecs=\"").SubstringUntil("\"")
-                .Split(", ").FirstOrDefault(); // video codec is either the only codec or the first codec
-
-            public bool ParseIsAudioOnly() => ParseMimeType().StartsWith("audio/", StringComparison.OrdinalIgnoreCase);
-
-            public int ParseWidth() => _root.SelectToken("width").Value<int>();
-
-            public int ParseHeight() => _root.SelectToken("height").Value<int>();
-
-            public int ParseFramerate() => _root.SelectToken("fps").Value<int>();
-
-            public string ParseVideoQualityLabel() => _root.SelectToken("qualityLabel").Value<string>();
-        }
-
-        public class ClosedCaptionTrackInfoParser
-        {
-            private readonly JToken _root;
-
-            public ClosedCaptionTrackInfoParser(JToken root)
-            {
-                _root = root;
-            }
-
-            public string ParseUrl() => _root.SelectToken("baseUrl").Value<string>();
-
-            public string ParseLanguageCode() => _root.SelectToken("languageCode").Value<string>();
-
-            public string ParseLanguageName() => _root.SelectToken("name.simpleText").Value<string>();
-
-            public bool ParseIsAutoGenerated() => _root.SelectToken("vssId").Value<string>()
-                .StartsWith("a.", StringComparison.OrdinalIgnoreCase);
-        }
-    }
-
-
-    internal class DashManifestParser
-    {
-        private readonly XElement _root;
-
-        public DashManifestParser(XElement root)
-        {
-            _root = root;
-        }
-
-        public static DashManifestParser Initialize(string raw)
-        {
-            var root = XElement.Parse(raw).StripNamespaces();
-            return new DashManifestParser(root);
-        }
-
-        public IEnumerable<StreamInfoParser> GetStreamInfos()
-        {
-            var streamInfosXml = _root.Descendants("Representation");
-
-            // Filter out partial streams
-            streamInfosXml = streamInfosXml.Where(s =>
-                s.Descendants("Initialization").FirstOrDefault()?.Attribute("sourceURL")?.Value.Contains("sq/") !=
-                true);
-
-            return streamInfosXml.Select(x => new StreamInfoParser(x));
-        }
-
-        public class StreamInfoParser
-        {
-            private readonly XElement _root;
-
-            public StreamInfoParser(XElement root)
-            {
-                _root = root;
-            }
-
-            public int ParseItag() => (int)_root.Attribute("id");
-
-            public string ParseUrl() => (string)_root.Element("BaseURL");
-
-            public long ParseContentLength() => Regex.Match(ParseUrl(), @"clen[/=](\d+)").Groups[1].Value.ParseLong();
-
-            public long ParseBitrate() => (long)_root.Attribute("bandwidth");
-
-            public string ParseContainer() => Regex.Match(ParseUrl(), @"mime[/=]\w*%2F([\w\d]*)").Groups[1].Value.UrlDecode();
-
-            public string ParseEncoding() => (string)_root.Attribute("codecs");
-
-            public bool ParseIsAudioOnly() => _root.Element("AudioChannelConfiguration") != null;
-
-            public int ParseWidth() => (int)_root.Attribute("width");
-
-            public int ParseHeight() => (int)_root.Attribute("height");
-
-            public int ParseFramerate() => (int)_root.Attribute("frameRate");
-        }
-    }
-
-
-    internal class VideoWatchPageParser
-    {
-        private readonly IHtmlDocument _root;
-
-        public VideoWatchPageParser(IHtmlDocument root)
-        {
-            _root = root;
-        }
-
-        public static VideoWatchPageParser Initialize(string raw)
-        {
-            var root = new AngleSharp.Parser.Html.HtmlParser().Parse(raw);
-            return new VideoWatchPageParser(root);
-        }
-
-        public DateTimeOffset ParseUploadDate() => _root.QuerySelector("meta[itemprop=\"datePublished\"]")
-            .GetAttribute("content").ParseDateTimeOffset("yyyy-MM-dd");
-
-        public string ParseDescription()
-        {
-            var buffer = new StringBuilder();
-
-            var descriptionNode = _root.QuerySelector("p#eow-description");
-            var childNodes = descriptionNode.ChildNodes;
-
-            foreach (var childNode in childNodes)
-            {
-                if (childNode.NodeType == NodeType.Text)
-                {
-                    buffer.Append(childNode.TextContent);
-                }
-                else if (childNode is IHtmlAnchorElement anchorNode)
-                {
-                    // If it uses YouTube redirect - get the actual link
-                    if (anchorNode.PathName.Equals("/redirect", StringComparison.OrdinalIgnoreCase))
-                    {
-                        // Get query parameters
-                        var queryParams = UrlEx.SplitQuery(anchorNode.Search);
-
-                        // Get the actual href
-                        var actualHref = queryParams["q"].UrlDecode();
-
-                        buffer.Append(actualHref);
-                    }
-                    else
-                    {
-                        buffer.Append(anchorNode.TextContent);
-                    }
-                }
-                else if (childNode is IHtmlBreakRowElement)
-                {
-                    buffer.AppendLine();
-                }
-            }
-
-            return buffer.ToString();
-        }
-
-        public long ParseViewCount() => _root.QuerySelector("meta[itemprop=\"interactionCount\"]")
-            ?.GetAttribute("content").ParseLongOrDefault() ?? 0;
-
-        public long ParseLikeCount() => _root.QuerySelector("button.like-button-renderer-like-button")?.Text()
-            .StripNonDigit().ParseLongOrDefault() ?? 0;
-
-        public long ParseDislikeCount() => _root.QuerySelector("button.like-button-renderer-dislike-button")?.Text()
-            .StripNonDigit().ParseLongOrDefault() ?? 0;
-
-        public ConfigParser GetConfig()
-        {
-            var configRaw = Regex.Match(_root.Source.Text,
-                    @"ytplayer\.config = (?<Json>\{[^\{\}]*(((?<Open>\{)[^\{\}]*)+((?<Close-Open>\})[^\{\}]*)+)*(?(Open)(?!))\})")
-                .Groups["Json"].Value;
-            var configJson = JToken.Parse(configRaw);
-
-            return new ConfigParser(configJson);
-        }
-
-        public class ConfigParser
-        {
-            private readonly JToken _root;
-
-            public ConfigParser(JToken root)
-            {
-                _root = root;
-            }
-
-            public string ParsePreviewVideoId() => _root.SelectToken("args.ypc_vid")?.Value<string>();
-
-            public PlayerResponseParser GetPlayerResponse()
-            {
-                // Player response is a json, which is stored as a string, inside json
-                var playerResponseRaw = _root.SelectToken("args.player_response").Value<string>();
-                var playerResponseJson = JToken.Parse(playerResponseRaw);
-
-                return new PlayerResponseParser(playerResponseJson);
-            }
-        }
-
-    }
-
-
     public class YoutubeClient : IDisposable
     {
+        private static NLog.Logger logger = NLog.LogManager.GetCurrentClassLogger();
 
         private readonly HttpClient httpClient;
         public YoutubeClient()
         {
+            logger.Debug("YoutubeClient()");
+
             var handler = new HttpClientHandler();
             if (handler.SupportsAutomaticDecompression)
             {
@@ -956,7 +527,7 @@ namespace YoutubeApi
             }
 
             handler.UseCookies = false;
-            
+            logger.Debug("new HttpClient()");
             httpClient = new HttpClient(handler, true);
         }
 
@@ -980,7 +551,8 @@ namespace YoutubeApi
         /// </summary>
         public static bool TryParseVideoId(string videoUrl, out string videoId)
         {
-            Debug.WriteLine("TryParseVideoId(...)");
+            logger.Debug("TryParseVideoId(...)");
+
             videoId = default(string);
 
             if (videoUrl.IsBlank())
@@ -1029,7 +601,7 @@ namespace YoutubeApi
         /// <inheritdoc />
         public async Task<MediaStreamInfoSet> GetVideoMediaStreamInfosAsync(string videoId)
         {
-            Debug.WriteLine("GetVideoMediaStreamInfosAsync(...)");
+            logger.Debug("GetVideoMediaStreamInfosAsync(...)");
 
             //videoId.GuardNotNull(nameof(videoId));
 
@@ -1046,6 +618,7 @@ namespace YoutubeApi
             var muxedStreamInfoMap = new Dictionary<int, MuxedStreamInfo>();
             var audioStreamInfoMap = new Dictionary<int, AudioStreamInfo>();
             var videoStreamInfoMap = new Dictionary<int, VideoStreamInfo>();
+
 
             // Parse muxed stream infos
             foreach (var streamInfoParser in parser.GetMuxedStreamInfos())
@@ -1232,7 +805,7 @@ namespace YoutubeApi
 
         private async Task<PlayerResponseParser> GetPlayerResponseParserAsync(string videoId, bool ensureIsPlayable = false)
         {
-            Debug.WriteLine("GetPlayerResponseParserAsync(...)");
+            logger.Debug("GetPlayerResponseParserAsync(...)");
 
             // Get player response parser via video info (this works for most videos)
             var videoInfoParser = await GetVideoInfoParserAsync(videoId).ConfigureAwait(false);
@@ -1280,7 +853,7 @@ namespace YoutubeApi
 
         private async Task<VideoWatchPageParser> GetVideoWatchPageParserAsync(string videoId)
         {
-            Debug.WriteLine("GetVideoWatchPageParserAsync(...)");
+            logger.Debug("GetVideoWatchPageParserAsync(...)");
 
             var url = $"https://www.youtube.com/watch?v={videoId}&disable_polymer=true&bpctr=9999999999&hl=en";
             var raw = await httpClient.GetStringAsync(url).ConfigureAwait(false);
@@ -1292,6 +865,7 @@ namespace YoutubeApi
         private async Task<VideoInfoParser> GetVideoInfoParserAsync(string videoId, string el = "embedded")
         {
             Debug.WriteLine("GetVideoInfoParserAsync(...)");
+
             // This parameter does magic and a lot of videos don't work without it
             var eurl = $"https://youtube.googleapis.com/v/{videoId}".UrlEncode();
 
@@ -1303,6 +877,7 @@ namespace YoutubeApi
 
         private async Task<DashManifestParser> GetDashManifestParserAsync(string dashManifestUrl)
         {
+            logger.Debug("GetDashManifestParserAsync(...)");
             var raw = await httpClient.GetStringAsync(dashManifestUrl).ConfigureAwait(false);
             return DashManifestParser.Initialize(raw);
         }
@@ -1349,12 +924,444 @@ namespace YoutubeApi
                 await input.CopyToAsync(output, progress, cancellationToken).ConfigureAwait(false);
         }
 
-
         public void Dispose()
         {
+            logger.Debug("YoutubeClient::Dispose()");
             httpClient?.Dispose();
         }
+
+        #region Internals
+        internal static class MediaHelper
+        {
+            public static Container ContainerFromString(string str)
+            {
+                if (str.Equals("mp4", StringComparison.OrdinalIgnoreCase))
+                    return Container.Mp4;
+
+                if (str.Equals("webm", StringComparison.OrdinalIgnoreCase))
+                    return Container.WebM;
+
+                if (str.Equals("3gpp", StringComparison.OrdinalIgnoreCase))
+                    return Container.Tgpp;
+
+                // Unknown
+                throw new ArgumentOutOfRangeException(nameof(str), $"Unknown container [{str}].");
+            }
+
+            public static string ContainerToFileExtension(Container container)
+            {
+                // Tgpp gets special treatment
+                if (container == Container.Tgpp)
+                    return "3gpp";
+
+                // Convert to lower case string
+                return container.ToString().ToLowerInvariant();
+            }
+            public static AudioEncoding AudioEncodingFromString(string str)
+            {
+                if (str.StartsWith("mp4a", StringComparison.OrdinalIgnoreCase))
+                    return AudioEncoding.Aac;
+
+                if (str.StartsWith("vorbis", StringComparison.OrdinalIgnoreCase))
+                    return AudioEncoding.Vorbis;
+
+                if (str.StartsWith("opus", StringComparison.OrdinalIgnoreCase))
+                    return AudioEncoding.Opus;
+
+                // Unknown
+                throw new ArgumentOutOfRangeException(nameof(str), $"Unknown encoding [{str}].");
+            }
+
+            public static VideoEncoding VideoEncodingFromString(string str)
+            {
+                if (str.StartsWith("mp4v", StringComparison.OrdinalIgnoreCase))
+                    return VideoEncoding.Mp4V;
+
+                if (str.StartsWith("avc1", StringComparison.OrdinalIgnoreCase))
+                    return VideoEncoding.H264;
+
+                if (str.StartsWith("vp8", StringComparison.OrdinalIgnoreCase))
+                    return VideoEncoding.Vp8;
+
+                if (str.StartsWith("vp9", StringComparison.OrdinalIgnoreCase))
+                    return VideoEncoding.Vp9;
+
+                if (str.StartsWith("av01", StringComparison.OrdinalIgnoreCase))
+                    return VideoEncoding.Av1;
+
+                // Unknown
+                throw new ArgumentOutOfRangeException(nameof(str), $"Unknown encoding [{str}].");
+            }
+        }
+
+        internal static class VideoQualityHelper
+        {
+            private static readonly Dictionary<int, VideoQuality> HeightToVideoQualityMap =
+                Enum.GetValues(typeof(VideoQuality)).Cast<VideoQuality>().ToDictionary(
+                    v => v.ToString().StripNonDigit().ParseInt(), // High1080 => 1080
+                    v => v);
+
+            public static VideoQuality VideoQualityFromHeight(int height)
+            {
+                // Find the video quality by height (highest video quality that has height below or equal to given)
+                var matchingHeight = HeightToVideoQualityMap.Keys.LastOrDefault(h => h <= height);
+
+                // Return video quality
+                return matchingHeight > 0
+                    ? HeightToVideoQualityMap[matchingHeight] // if found - return matching quality
+                    : HeightToVideoQualityMap.Values.First(); // otherwise return lowest available quality
+            }
+
+            public static VideoQuality VideoQualityFromLabel(string label)
+            {
+                // Strip "p" and framerate to get height (e.g. >1080<p60)
+                var heightStr = label.SubstringUntil("p");
+                var height = heightStr.ParseInt();
+
+                return VideoQualityFromHeight(height);
+            }
+
+            public static string VideoQualityToLabel(VideoQuality quality)
+            {
+                // Convert to string, strip non-digits and add "p"
+                return quality.ToString().StripNonDigit() + "p";
+            }
+
+            public static string VideoQualityToLabel(VideoQuality quality, int framerate)
+            {
+                // Framerate appears only if it's above 30
+                if (framerate <= 30)
+                    return VideoQualityToLabel(quality);
+
+                // YouTube rounds framerate to nearest next ten
+                var framerateRounded = (int)Math.Ceiling(framerate / 10.0) * 10;
+                return VideoQualityToLabel(quality) + framerateRounded;
+            }
+        }
+
+        internal class VideoInfoParser
+        {
+            private readonly IReadOnlyDictionary<string, string> _root;
+
+            public VideoInfoParser(IReadOnlyDictionary<string, string> root)
+            {
+                _root = root;
+            }
+
+            public PlayerResponseParser GetPlayerResponse()
+            {
+                // Extract player response
+                var playerResponseRaw = _root["player_response"];
+                var playerResponseJson = JToken.Parse(playerResponseRaw);
+
+                return new PlayerResponseParser(playerResponseJson);
+            }
+
+            public static VideoInfoParser Initialize(string raw)
+            {
+                var root = UrlEx.SplitQuery(raw);
+                return new VideoInfoParser(root);
+            }
+        }
+
+        internal class PlayerResponseParser
+        {
+            private readonly JToken _root;
+
+            public PlayerResponseParser(JToken root)
+            {
+                _root = root;
+            }
+
+            public bool ParseIsAvailable() => _root.SelectToken("videoDetails") != null;
+
+            public bool ParseIsPlayable()
+            {
+                var playabilityStatusValue = _root.SelectToken("playabilityStatus.status")?.Value<string>();
+                return string.Equals(playabilityStatusValue, "OK", StringComparison.OrdinalIgnoreCase);
+            }
+
+            public string ParseErrorReason() => _root.SelectToken("playabilityStatus.reason")?.Value<string>();
+
+            public string ParseAuthor() => _root.SelectToken("videoDetails.author").Value<string>();
+
+            public string ParseChannelId() => _root.SelectToken("videoDetails.channelId").Value<string>();
+
+            public string ParseTitle() => _root.SelectToken("videoDetails.title").Value<string>();
+
+            public TimeSpan ParseDuration()
+            {
+                var durationSeconds = _root.SelectToken("videoDetails.lengthSeconds").Value<double>();
+                return TimeSpan.FromSeconds(durationSeconds);
+            }
+
+            public IReadOnlyList<string> ParseKeywords() =>
+                _root.SelectToken("videoDetails.keywords").EmptyIfNull().Values<string>().ToArray();
+
+            public bool ParseIsLiveStream() => _root.SelectToken("videoDetails.isLiveContent")?.Value<bool>() == true;
+
+            public string ParseDashManifestUrl()
+            {
+                // HACK: Don't return DASH manifest URL if it's a live stream
+                // I'm not sure how to handle these streams yet
+                if (ParseIsLiveStream())
+                    return null;
+
+                return _root.SelectToken("streamingData.dashManifestUrl")?.Value<string>();
+            }
+
+            public string ParseHlsManifestUrl() => _root.SelectToken("streamingData.hlsManifestUrl")?.Value<string>();
+
+            public TimeSpan ParseStreamInfoSetExpiresIn()
+            {
+                var expiresInSeconds = _root.SelectToken("streamingData.expiresInSeconds").Value<double>();
+                return TimeSpan.FromSeconds(expiresInSeconds);
+            }
+
+            public IEnumerable<StreamInfoParser> GetMuxedStreamInfos()
+            {
+                // HACK: Don't return streams if it's a live stream
+                // I'm not sure how to handle these streams yet
+                if (ParseIsLiveStream())
+                    return Enumerable.Empty<StreamInfoParser>();
+
+                return _root.SelectToken("streamingData.formats").EmptyIfNull().Select(j => new StreamInfoParser(j));
+            }
+
+            public IEnumerable<StreamInfoParser> GetAdaptiveStreamInfos()
+            {
+                // HACK: Don't return streams if it's a live stream
+                // I'm not sure how to handle these streams yet
+                if (ParseIsLiveStream())
+                    return Enumerable.Empty<StreamInfoParser>();
+
+                return _root.SelectToken("streamingData.adaptiveFormats").EmptyIfNull()
+                    .Select(j => new StreamInfoParser(j));
+            }
+
+            public IEnumerable<ClosedCaptionTrackInfoParser> GetClosedCaptionTrackInfos()
+                => _root.SelectToken("captions.playerCaptionsTracklistRenderer.captionTracks").EmptyIfNull()
+                    .Select(t => new ClosedCaptionTrackInfoParser(t));
+
+            public class StreamInfoParser
+            {
+                private readonly JToken _root;
+
+                public StreamInfoParser(JToken root)
+                {
+                    _root = root;
+                }
+
+                public int ParseItag() => _root.SelectToken("itag").Value<int>();
+
+                public string ParseUrl() => _root.SelectToken("url").Value<string>();
+
+                public long ParseContentLength() => _root.SelectToken("contentLength")?.Value<long>() ?? -1;
+
+                public long ParseBitrate() => _root.SelectToken("bitrate").Value<long>();
+
+                public string ParseMimeType() => _root.SelectToken("mimeType").Value<string>();
+
+                public string ParseContainer() => ParseMimeType().SubstringUntil(";").SubstringAfter("/");
+
+                public string ParseAudioEncoding() => ParseMimeType().SubstringAfter("codecs=\"").SubstringUntil("\"")
+                    .Split(", ").LastOrDefault(); // audio codec is either the only codec or the second (last) codec
+
+                public string ParseVideoEncoding() => ParseMimeType().SubstringAfter("codecs=\"").SubstringUntil("\"")
+                    .Split(", ").FirstOrDefault(); // video codec is either the only codec or the first codec
+
+                public bool ParseIsAudioOnly() => ParseMimeType().StartsWith("audio/", StringComparison.OrdinalIgnoreCase);
+
+                public int ParseWidth() => _root.SelectToken("width").Value<int>();
+
+                public int ParseHeight() => _root.SelectToken("height").Value<int>();
+
+                public int ParseFramerate() => _root.SelectToken("fps").Value<int>();
+
+                public string ParseVideoQualityLabel() => _root.SelectToken("qualityLabel").Value<string>();
+            }
+
+            public class ClosedCaptionTrackInfoParser
+            {
+                private readonly JToken _root;
+
+                public ClosedCaptionTrackInfoParser(JToken root)
+                {
+                    _root = root;
+                }
+
+                public string ParseUrl() => _root.SelectToken("baseUrl").Value<string>();
+
+                public string ParseLanguageCode() => _root.SelectToken("languageCode").Value<string>();
+
+                public string ParseLanguageName() => _root.SelectToken("name.simpleText").Value<string>();
+
+                public bool ParseIsAutoGenerated() => _root.SelectToken("vssId").Value<string>()
+                    .StartsWith("a.", StringComparison.OrdinalIgnoreCase);
+            }
+        }
+
+        internal class DashManifestParser
+        {
+            private readonly XElement _root;
+
+            public DashManifestParser(XElement root)
+            {
+                _root = root;
+            }
+
+            public static DashManifestParser Initialize(string raw)
+            {
+                var root = XElement.Parse(raw).StripNamespaces();
+                return new DashManifestParser(root);
+            }
+
+            public IEnumerable<StreamInfoParser> GetStreamInfos()
+            {
+                var streamInfosXml = _root.Descendants("Representation");
+
+                // Filter out partial streams
+                streamInfosXml = streamInfosXml.Where(s =>
+                    s.Descendants("Initialization").FirstOrDefault()?.Attribute("sourceURL")?.Value.Contains("sq/") !=
+                    true);
+
+                return streamInfosXml.Select(x => new StreamInfoParser(x));
+            }
+
+            public class StreamInfoParser
+            {
+                private readonly XElement _root;
+
+                public StreamInfoParser(XElement root)
+                {
+                    _root = root;
+                }
+
+                public int ParseItag() => (int)_root.Attribute("id");
+
+                public string ParseUrl() => (string)_root.Element("BaseURL");
+
+                public long ParseContentLength() => Regex.Match(ParseUrl(), @"clen[/=](\d+)").Groups[1].Value.ParseLong();
+
+                public long ParseBitrate() => (long)_root.Attribute("bandwidth");
+
+                public string ParseContainer() => Regex.Match(ParseUrl(), @"mime[/=]\w*%2F([\w\d]*)").Groups[1].Value.UrlDecode();
+
+                public string ParseEncoding() => (string)_root.Attribute("codecs");
+
+                public bool ParseIsAudioOnly() => _root.Element("AudioChannelConfiguration") != null;
+
+                public int ParseWidth() => (int)_root.Attribute("width");
+
+                public int ParseHeight() => (int)_root.Attribute("height");
+
+                public int ParseFramerate() => (int)_root.Attribute("frameRate");
+            }
+        }
+
+        internal class VideoWatchPageParser
+        {
+            private readonly IHtmlDocument _root;
+
+            public VideoWatchPageParser(IHtmlDocument root)
+            {
+                _root = root;
+            }
+
+            public static VideoWatchPageParser Initialize(string raw)
+            {
+
+                var root = new AngleSharp.Parser.Html.HtmlParser().Parse(raw);
+                return new VideoWatchPageParser(root);
+            }
+
+            public DateTimeOffset ParseUploadDate() => _root.QuerySelector("meta[itemprop=\"datePublished\"]")
+                .GetAttribute("content").ParseDateTimeOffset("yyyy-MM-dd");
+
+            public string ParseDescription()
+            {
+                var buffer = new StringBuilder();
+
+                var descriptionNode = _root.QuerySelector("p#eow-description");
+                var childNodes = descriptionNode.ChildNodes;
+
+                foreach (var childNode in childNodes)
+                {
+                    if (childNode.NodeType == NodeType.Text)
+                    {
+                        buffer.Append(childNode.TextContent);
+                    }
+                    else if (childNode is IHtmlAnchorElement anchorNode)
+                    {
+                        // If it uses YouTube redirect - get the actual link
+                        if (anchorNode.PathName.Equals("/redirect", StringComparison.OrdinalIgnoreCase))
+                        {
+                            // Get query parameters
+                            var queryParams = UrlEx.SplitQuery(anchorNode.Search);
+
+                            // Get the actual href
+                            var actualHref = queryParams["q"].UrlDecode();
+
+                            buffer.Append(actualHref);
+                        }
+                        else
+                        {
+                            buffer.Append(anchorNode.TextContent);
+                        }
+                    }
+                    else if (childNode is IHtmlBreakRowElement)
+                    {
+                        buffer.AppendLine();
+                    }
+                }
+
+                return buffer.ToString();
+            }
+
+            public long ParseViewCount() => _root.QuerySelector("meta[itemprop=\"interactionCount\"]")
+                ?.GetAttribute("content").ParseLongOrDefault() ?? 0;
+
+            public long ParseLikeCount() => _root.QuerySelector("button.like-button-renderer-like-button")?.Text()
+                .StripNonDigit().ParseLongOrDefault() ?? 0;
+
+            public long ParseDislikeCount() => _root.QuerySelector("button.like-button-renderer-dislike-button")?.Text()
+                .StripNonDigit().ParseLongOrDefault() ?? 0;
+
+            public ConfigParser GetConfig()
+            {
+                var configRaw = Regex.Match(_root.Source.Text,
+                        @"ytplayer\.config = (?<Json>\{[^\{\}]*(((?<Open>\{)[^\{\}]*)+((?<Close-Open>\})[^\{\}]*)+)*(?(Open)(?!))\})")
+                    .Groups["Json"].Value;
+                var configJson = JToken.Parse(configRaw);
+
+                return new ConfigParser(configJson);
+            }
+
+            public class ConfigParser
+            {
+                private readonly JToken _root;
+
+                public ConfigParser(JToken root)
+                {
+                    _root = root;
+                }
+
+                public string ParsePreviewVideoId() => _root.SelectToken("args.ypc_vid")?.Value<string>();
+
+                public PlayerResponseParser GetPlayerResponse()
+                {
+                    // Player response is a json, which is stored as a string, inside json
+                    var playerResponseRaw = _root.SelectToken("args.player_response").Value<string>();
+                    var playerResponseJson = JToken.Parse(playerResponseRaw);
+
+                    return new PlayerResponseParser(playerResponseJson);
+                }
+            }
+
+        }
+        #endregion
     }
+
 
     internal static class Extensions
     {
@@ -1612,6 +1619,7 @@ namespace YoutubeApi
             } while (bytesCopied > 0);
         }
     }
+
 
     internal class SegmentedHttpStream : Stream
     {

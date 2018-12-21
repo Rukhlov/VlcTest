@@ -36,17 +36,6 @@ namespace VlcPlayer
             }
         }
 
-        private string mediaAddr = "";
-        public string MediaAddr
-        {
-            get { return mediaAddr; }
-            set
-            {
-                mediaAddr = value;
-                OnPropertyChanged(nameof(MediaAddr));
-            }
-        }
-
 
         private ImageSource videoSource;
         public ImageSource VideoSource
@@ -119,7 +108,28 @@ namespace VlcPlayer
                 OnPropertyChanged(nameof(Volume));
             }
         }
+        
+        private string mediaAddr = "";
+        public string MediaAddr
+        {
+            get { return mediaAddr; }
+            set
+            {
+                mediaAddr = value;
+                OnPropertyChanged(nameof(MediaAddr));
+            }
+        }
 
+        private string mrl = "";
+        public string Mrl
+        {
+            get { return mrl; }
+            set
+            {
+                mrl = value;
+                OnPropertyChanged(nameof(Mrl));
+            }
+        }
 
         private float position = 0;
         public float Position
@@ -131,6 +141,29 @@ namespace VlcPlayer
                 OnPropertyChanged(nameof(Position));
             }
         }
+
+        private TimeSpan currentTime = TimeSpan.MinValue;
+        public TimeSpan CurrentTime
+        {
+            get { return currentTime; }
+            set
+            {
+                currentTime = value;
+                OnPropertyChanged(nameof(CurrentTime));
+            }
+        }
+
+        private TimeSpan totalTime = TimeSpan.MinValue;
+        public TimeSpan TotalTime
+        {
+            get { return totalTime; }
+            set
+            {
+                totalTime = value;
+                OnPropertyChanged(nameof(TotalTime));
+            }
+        }
+
 
         private PlaybackStatistics playbackStats = new PlaybackStatistics();
         public PlaybackStatistics PlaybackStats
@@ -151,6 +184,10 @@ namespace VlcPlayer
         }
     }
 
+    public class MediaResource
+    {
+
+    }
 
     public class PlaybackStatistics : INotifyPropertyChanged
     {
@@ -196,18 +233,6 @@ namespace VlcPlayer
             {
                 playedAudioBuffers = value;
                 OnPropertyChanged(nameof(PlayedAudioBuffers));
-            }
-        }
-
-
-        private float position = 0;
-        public float Position
-        {
-            get { return position; }
-            set
-            {
-                position = value;
-                OnPropertyChanged(nameof(Position));
             }
         }
 

@@ -48,20 +48,8 @@
             </Image.Effect>-->
         </Image>
 
-
-        <Expander Header="Log
-                  " Background="#FF02FF0D" Grid.Row="1" >
-            <Grid Background="#FFE5E5E5" >
-                <RichTextBox Name ="Logger" HorizontalAlignment="Stretch"  VerticalScrollBarVisibility ="Visible" Height="150" MinHeight="100" IsReadOnly="True">
-                    <FlowDocument>
-
-                    </FlowDocument>
-                </RichTextBox>
-            </Grid>
-        </Expander>
-
         <StackPanel HorizontalAlignment="Left" Margin="10,13,0,0" VerticalAlignment="Top" Background="#7F000000">
-            
+
             <Label x:Name ="StatusLabel" Content="{Binding Session.PlaybackState, FallbackValue=---}" VerticalAlignment="Top"  HorizontalAlignment="Left" 
                Foreground="Red" VerticalContentAlignment="Center" HorizontalContentAlignment="Left"
                Padding="0" FontSize="16" FontFamily="Arial" Background="#7F000000" Margin="0,0,0,10" >
@@ -87,18 +75,33 @@
                HorizontalAlignment="Left"  VerticalAlignment="Top"  
                Padding="0" 
                Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000" />
-        
+
             <Label x:Name ="PositoinLabel" Content="{Binding Session.Position, FallbackValue=---}" ContentStringFormat="Position: {0}"
                HorizontalAlignment="Left"  VerticalAlignment="Top"  
                Padding="0" 
                Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000" />
 
-
-            <Label x:Name ="PlaybackTimingLabel" Content="{Binding PlaybackTiming, FallbackValue=---}" ContentStringFormat="Time: {0}"
+            <!--<Label x:Name ="PlaybackTimingLabel" Content="{Binding Session.TotalTime,  FallbackValue=}" ContentStringFormat="Time: {0:hh\\:mm}"
                HorizontalAlignment="Left"  VerticalAlignment="Top"  
                Padding="0" 
-               Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000" />
-            
+               Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000"/>-->
+
+            <Label x:Name ="PlaybackTimingLabel"
+               HorizontalAlignment="Left"  VerticalAlignment="Top"  
+               Padding="0" 
+               Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000">
+                <Label.Content>
+                    <TextBlock>
+                        <TextBlock.Text>
+                            <MultiBinding StringFormat="{}{0:hh':'mm':'ss'.'fff} / {1:hh':'mm':'ss'.'fff}" FallbackValue="-" >
+                                <Binding Path="Session.CurrentTime" />
+                                <Binding Path="Session.TotalTime" />
+                            </MultiBinding>
+                        </TextBlock.Text>
+                    </TextBlock>
+                </Label.Content>
+            </Label>
+
             <Label x:Name ="VolumeLabel" Content="{Binding Session.Volume, FallbackValue=---}" ContentStringFormat="Volume: {0}"
                HorizontalAlignment="Left"  VerticalAlignment="Top"  
                Padding="0" 
@@ -118,62 +121,5 @@
 
     </Grid>
 
-
-
-    <!--<RichTextBox >
-
-        </RichTextBox>-->
-
-
-    <!--<Window.Background>
-        <SolidColorBrush Color="{DynamicResource {x:Static SystemColors.ActiveCaptionColorKey}}"/>
-    </Window.Background>
-    <Viewbox Margin="1,1,1,1" Stretch="Uniform" >
-        <Grid >
-            -->
-    <!--<ContentControl Grid.Row="0" Name="ControlContainer"  />-->
-    <!--
-            <Image x:Name="Video" Stretch="Uniform"/>
-        </Grid>
-    </Viewbox>-->
-
-
-
-    <!--<Label.Style>
-                <Style TargetType="Label">
-                    <Setter Property="Content" Value="Initializing..."/>
-                    <Style.Triggers>
-                        <DataTrigger Binding="{Binding Initializing}" Value="True">
-                            <DataTrigger.EnterActions>
-                                <BeginStoryboard>
-                                    <Storyboard Storyboard.TargetProperty="Content">
-                                        <ObjectAnimationUsingKeyFrames Duration="00:00:04"
-                                                                RepeatBehavior="Forever">
-                                            <DiscreteObjectKeyFrame KeyTime="00:00:00"
-                                                            Value="Initializing"/>
-                                            <DiscreteObjectKeyFrame KeyTime="00:00:01"
-                                                            Value="Initializing."/>
-                                            <DiscreteObjectKeyFrame KeyTime="00:00:02"
-                                                            Value="Initializing.."/>
-                                            <DiscreteObjectKeyFrame KeyTime="00:00:03"
-                                                            Value="Initializing..."/>
-                                        </ObjectAnimationUsingKeyFrames>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </DataTrigger.EnterActions>
-                            <DataTrigger.ExitActions>
-                                <BeginStoryboard>
-                                    <Storyboard Storyboard.TargetProperty="Content">
-                                        <ObjectAnimationUsingKeyFrames Duration="00:00:00">
-                                            <DiscreteObjectKeyFrame KeyTime="00:00:00"
-                                                            Value="Initializing"/>
-                                        </ObjectAnimationUsingKeyFrames>
-                                    </Storyboard>
-                                </BeginStoryboard>
-                            </DataTrigger.ExitActions>
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Label.Style>-->
 
 </Window>

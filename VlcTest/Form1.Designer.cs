@@ -145,7 +145,6 @@
             this.button3.TabIndex = 13;
             this.button3.Text = "Invalidate";
             this.button3.UseVisualStyleBackColor = true;
-            //this.button3.Click += new System.EventHandler(this.button3_Click);
             // 
             // buttonPlay
             // 
@@ -191,10 +190,10 @@
             // 
             this.trackBarVolume.AutoSize = false;
             this.trackBarVolume.LargeChange = 10;
-            this.trackBarVolume.Location = new System.Drawing.Point(532, 171);
+            this.trackBarVolume.Location = new System.Drawing.Point(483, 171);
             this.trackBarVolume.Maximum = 100;
             this.trackBarVolume.Name = "trackBarVolume";
-            this.trackBarVolume.Size = new System.Drawing.Size(89, 20);
+            this.trackBarVolume.Size = new System.Drawing.Size(228, 20);
             this.trackBarVolume.TabIndex = 19;
             this.trackBarVolume.TickFrequency = 10;
             this.trackBarVolume.Value = 100;

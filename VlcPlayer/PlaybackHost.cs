@@ -93,20 +93,6 @@ namespace VlcPlayer
         }
 
 
-        private string playbackTiming;
-        public string PlaybackTiming
-        {
-            get { return playbackTiming; }
-            set
-            {
-                if (playbackTiming != value)
-                {
-                    playbackTiming = value;
-                    OnPropertyChanged(nameof(PlaybackTiming));
-                }
-            }
-        }
-
         private ICommand playCommand = null;
         public ICommand PlayCommand
         {
@@ -201,9 +187,13 @@ namespace VlcPlayer
                     //TryToStart();
                 }
 
+
+                
                 playbackThread = new Thread(PlaybackProc);
                 playbackThread.IsBackground = true;
                 playbackThread.Start();
+
+
             }
             catch (Exception ex)
             {
@@ -236,7 +226,7 @@ namespace VlcPlayer
             player.Paused += MediaPlayer_Paused;
             player.EndReached += Player_EndReached;
             player.Stopped += MediaPlayer_Stopped;
-
+            player.MediaChanged += Player_MediaChanged;
             player.PositionChanged += MediaPlayer_PositionChanged;
             //player.TimeChanged += Player_TimeChanged;
             player.LengthChanged += MediaPlayer_LengthChanged;
@@ -313,6 +303,7 @@ namespace VlcPlayer
         {
             logger.Trace("PlaybackProc() BEGIN");
 
+
             try
             {
                 Session.PlaybackState = PlaybackState.Initialized;
@@ -322,8 +313,11 @@ namespace VlcPlayer
                     PlayCommand.Execute(Session.MediaAddr);
                 }
 
+                int openingTime = 0;
+                Stopwatch stopwatch = Stopwatch.StartNew();
                 while (true)
                 {
+
                     try
                     {
                         InternalCommand command = DequeueCommand();
@@ -336,6 +330,20 @@ namespace VlcPlayer
                         {
                             ProcessStatistic();
                         }
+
+                        if(Session.PlaybackState == PlaybackState.Opening)
+                        {
+                            openingTime += (int)stopwatch.ElapsedMilliseconds;
+                        }
+                        else
+                        {
+                            openingTime = 0;
+                        }
+
+                        if(openingTime > 10000)
+                        {
+                            logger.Warn("!!!!!!!!!!!! openingTime=" + openingTime);
+                        }
                     }
                     catch (Exception ex)
                     {
@@ -347,6 +355,8 @@ namespace VlcPlayer
                     {
                         break;
                     }
+
+                    stopwatch.Restart();
                 }
             }
             catch (Exception ex)
@@ -453,7 +463,9 @@ namespace VlcPlayer
                         var args = command.args;
                         if (args != null && args.Length > 0)
                         {
-                            PostToClientAsync("LengthChanged", new object[] { args[0] });
+                            var msecTotal = (long)args[0];
+                            Session.TotalTime = TimeSpan.FromMilliseconds(msecTotal);
+                            PostToClientAsync("LengthChanged", new object[] { msecTotal });
                         }
 
                     }
@@ -469,7 +481,7 @@ namespace VlcPlayer
 
                         //Session.PlaybackStats = new PlaybackStatistics();
 
-                        PostToClientAsync("Playing", new object[] { mediaStr });
+                        PostToClientAsync("Playing", new object[] {  });
                     }
                     break;
                 case "Pause":
@@ -498,6 +510,21 @@ namespace VlcPlayer
                         cancellationTokenSource?.Cancel();
 
                         mediaPlayer?.Stop();
+                    }
+                    break;
+                case "MediaChanged":
+                    {
+                        var media = mediaPlayer?.GetMedia();
+                        if(media!=null)
+                        {
+                            Session.Mrl = media.Mrl;
+
+                            Session.Position = 0;
+                            Session.CurrentTime = TimeSpan.Zero;
+                            Session.TotalTime = TimeSpan.Zero;//media.Duration;
+
+                            //logger.Info(media.GetInfoString());
+                        }
                     }
                     break;
                 case "EndReached":
@@ -533,7 +560,8 @@ namespace VlcPlayer
                         Session.PlaybackStats = null;
                         Session.Position = 0;
                         Session.Volume = -1;
-                        PlaybackTiming = "";
+                        Session.CurrentTime = TimeSpan.Zero;
+                        Session.TotalTime = TimeSpan.Zero;
 
                         lock (locker)
                         {
@@ -593,7 +621,10 @@ namespace VlcPlayer
                         int volume = 0;
                         if (int.TryParse(val0, out volume))
                         {
+
                             SetPlayerVolume(volume);
+
+                            // Task.Run(() => SetPlayerVolume(volume));
                         }
                     }
                     break;
@@ -601,7 +632,7 @@ namespace VlcPlayer
                     {
                         Session.Volume = (int)mediaPlayer?.Audio?.Volume;
 
-                        PostToClientAsync("AudioVolume", new object[] { Session.Volume });
+                       // PostToClientAsync("AudioVolume", new object[] { Session.Volume });
                     }
                     break;
                 default:
@@ -651,12 +682,12 @@ namespace VlcPlayer
                         {
                             Session.Position = pos;
 
-                            var total = media.Duration;
-                            var current = TimeSpan.FromMilliseconds(total.TotalMilliseconds * pos);
+                            // Session.TotalTime = media.Duration;
+                            var msec = Session.TotalTime.TotalMilliseconds * pos;
+                           
+                            Session.CurrentTime = TimeSpan.FromMilliseconds(msec);
 
-                            PlaybackTiming = current.ToString("hh\\:mm\\:ss") + " / " + total.ToString("hh\\:mm\\:ss");
-
-                            PostToClientAsync("Position", new object[] { Session.Position, current, total });
+                            PostToClientAsync("Position", new object[] { Session.Position, /*Session.CurrentTime, Session.TotalTime */});
                         }
                     }
                 }
@@ -853,6 +884,14 @@ namespace VlcPlayer
 
         }
 
+        private void Player_MediaChanged(object sender, VlcMediaPlayerMediaChangedEventArgs e)
+        {
+            logger.Debug("Player_MediaChanged(...)");
+
+            EnqueueCommand("MediaChanged", new object[] {  });
+        }
+
+
 
         private void MediaPlayer_PositionChanged(object sender, VlcMediaPlayerPositionChangedEventArgs e)
         {
@@ -1041,18 +1080,32 @@ namespace VlcPlayer
             }
             else if (command == "Volume")
             {
-                EnqueueCommand("Volume", new[] { val0 });
+                //EnqueueCommand("Volume", new[] { val0 });
+
+                int volume = 0;
+                if (int.TryParse(val0, out volume))
+                {
+                    SetPlayerVolume(volume);
+                }
+
+             
             }
             else if (command == "SwitchVideoAdjustments")
             {
-                if (mediaPlayer.Video != null)
+                float enabled = 0;
+                if (float.TryParse(val0, out enabled))
                 {
-                    var videoAdjustments = mediaPlayer.Video.Adjustments;
-                    if (videoAdjustments != null)
-                    {
-                        videoAdjustments.Enabled = !videoAdjustments.Enabled;
-                    }
+                    SetVideoAdjastment(VideoAdjustOptions.Enable, enabled);
                 }
+
+                //if (mediaPlayer.Video != null)
+                //{
+                //    var videoAdjustments = mediaPlayer.Video.Adjustments;
+                //    if (videoAdjustments != null)
+                //    {
+                //        mediaPlayer.Video.Adjustments.Enabled = !videoAdjustments.Enabled;
+                //    }
+                //}
             }
             else if (command == "Brightness")
             {
@@ -1197,8 +1250,9 @@ namespace VlcPlayer
                 }
                 else if (opts == VideoAdjustOptions.Enable)
                 {
-                    bool enabled = (val == 0);
-                    if (videoAdjustments.Enabled != enabled)
+                    bool enabled = (val != 0);
+                    logger.Debug("VideoAdjustOptions.Enable " + enabled);
+                    //if (videoAdjustments.Enabled != enabled)// libvlc_video_get_adjust_int() always return 0
                     {
                         videoAdjustments.Enabled = enabled;
                     }

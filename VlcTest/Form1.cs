@@ -985,10 +985,16 @@ namespace VlcTest
                 }
             }
 
+
+            PlayFile();
+        }
+
+        private void PlayFile(bool forse = false)
+        {
             CreateVideoForm();
             if (IsConnected)
             {
-                if (/*IsPaused ||*/ IsStopped)
+                if (/*IsPaused ||*/ IsStopped || forse)
                 {
                     PostMessage("Play", new[] { currentMediaFile });
                 }
@@ -1000,7 +1006,7 @@ namespace VlcTest
             else
             {
                 var fileName = this.textBox2.Text;
-                
+
                 StartPlayerProc(fileName);
             }
         }
@@ -1038,12 +1044,14 @@ namespace VlcTest
 
                 if (File.Exists(currentMediaFile))
                 {
-                    if (IsPaused || IsStopped)
-                    {
-                        CreateVideoForm();
+                    PlayFile(true);
 
-                        PostMessage("Play", new[] { currentMediaFile });
-                    }
+                    //if (IsPaused || IsStopped)
+                    //{
+                    //    CreateVideoForm();
+
+                    //    PostMessage("Play", new[] { currentMediaFile });
+                    //}
                 }
             }
         }
@@ -1163,7 +1171,8 @@ namespace VlcTest
 
         private void checkBoxVideoAdjustments_CheckedChanged(object sender, EventArgs e)
         {
-            PostMessage("SwitchVideoAdjustments");
+            var enable = checkBoxVideoAdjustments.Checked ? 1:0;
+            PostMessage("SwitchVideoAdjustments", new object[] { enable });
         }
 
         private void buttonResetVideoAdjustments_Click(object sender, EventArgs e)

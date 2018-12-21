@@ -62,6 +62,10 @@ namespace VlcPlayer
                 };
 
                 CommandLineOptions = ParseCommandLine(args);
+                if(CommandLineOptions == null)
+                {
+                    CommandLineOptions = new CommandLineOptions();
+                }
 
                 var parentId = CommandLineOptions.ParentId;
                 if (parentId > 0)
@@ -130,14 +134,16 @@ namespace VlcPlayer
         private static CommandLineOptions ParseCommandLine(string[] args)
         {
             logger.Debug("ParseCommandLine(...)");
-            var options = new CommandLineOptions();
+            CommandLineOptions options = null;
             if (args != null)
             {
                 logger.Info("Command Line String: " + string.Join(" ", args));
-                bool parseResult = Parser.Default.ParseArguments(args, options);
-                if (!parseResult)
+
+                options = new CommandLineOptions();
+                bool res = Parser.Default.ParseArguments(args, options);
+                if (!res)
                 {
-                    //...
+                   // options = null;
                 }
             }
             return options;
