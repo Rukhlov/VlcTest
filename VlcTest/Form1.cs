@@ -1058,7 +1058,8 @@ namespace VlcTest
 
         private void checkBoxMute_CheckedChanged(object sender, EventArgs e)
         {
-            PostMessage("Mute");
+            PostMessage("Mute", new object[] { checkBoxMute.Checked });
+
         }
 
         private void trackBarVolume_Scroll(object sender, EventArgs e)
@@ -1172,7 +1173,7 @@ namespace VlcTest
         private void checkBoxVideoAdjustments_CheckedChanged(object sender, EventArgs e)
         {
             var enable = checkBoxVideoAdjustments.Checked ? 1:0;
-            PostMessage("SwitchVideoAdjustments", new object[] { enable });
+            PostMessage("SetVideoAdjustments", new object[] { enable });
         }
 
         private void buttonResetVideoAdjustments_Click(object sender, EventArgs e)

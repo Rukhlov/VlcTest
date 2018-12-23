@@ -168,27 +168,8 @@ namespace VlcPlayer
 
                 Session.PlaybackState = PlaybackState.Initializing;
 
-                //var options = new string[] { ":audio-visual=visual", ":effect-list=spectrum" };
-                //var options = new string[] { "--video-filter=transform:sepia", "--sepia-intensity=100", "--transform-type=180" };
-                // var vlcopts = new string[] { "input-repeat=65535" };
-                //var opts = new string[] { "--aout=\"waveout\"" };
+                //SetupPlayback();
 
-                var opts = new string[] { "--extraintf=logger", "--verbose=0", "--network-caching=1000" };
-                this.mediaPlayer = CreatePlayer(Program.VlcLibDirectory, opts);
-                //this.mediaPlayer = CreatePlayer(App.VlcLibDirectory);
-
-                videoProvider.Setup();
-                //audioProvider.Setup();
-
-                if (!string.IsNullOrEmpty(Session.RemoteAddr))
-                {
-                    communicationClient.Setup(Session.RemoteAddr);
-                    //await SetupRemoteConnection();
-                    //TryToStart();
-                }
-
-
-                
                 playbackThread = new Thread(PlaybackProc);
                 playbackThread.IsBackground = true;
                 playbackThread.Start();
@@ -205,6 +186,24 @@ namespace VlcPlayer
 
         }
 
+        private void SetupPlayback()
+        {
+            //var options = new string[] { ":audio-visual=visual", ":effect-list=spectrum" };
+            //var options = new string[] { "--video-filter=transform:sepia", "--sepia-intensity=100", "--transform-type=180" };
+            // var vlcopts = new string[] { "input-repeat=65535" };
+            //var opts = new string[] { "--aout=\"waveout\"" };
+
+            var opts = new string[] { "--extraintf=logger", "--verbose=0", "--network-caching=1000" };
+            this.mediaPlayer = CreatePlayer(Program.VlcLibDirectory, opts);
+
+            videoProvider.Setup();
+            //audioProvider.Setup();
+
+            if (!string.IsNullOrEmpty(Session.RemoteAddr))
+            {
+                communicationClient.Setup(Session.RemoteAddr);
+            }
+        }
 
         private VlcMediaPlayer CreatePlayer(DirectoryInfo directory, string[] options = null)
         {
@@ -255,7 +254,70 @@ namespace VlcPlayer
         private Thread playbackThread = null;
         private AutoResetEvent syncEvent = new AutoResetEvent(false);
         private volatile bool closing = false;
-        private Queue<InternalCommand> commandQueue = new Queue<InternalCommand>();
+        //private Queue<InternalCommand> commandQueue = new Queue<InternalCommand>();
+
+        private CommandQueue _commandQueue = new CommandQueue();
+        class CommandQueue
+        {
+            private readonly LinkedList<InternalCommand> list = new LinkedList<InternalCommand>();
+
+            private readonly Dictionary<string, LinkedListNode<InternalCommand>> dictionary = new Dictionary<string, LinkedListNode<InternalCommand>>();
+
+            private readonly object locker = new object();
+
+            public InternalCommand Dequeue()
+            {
+                lock (locker)
+                {
+                    InternalCommand command = null;
+                    if (list.Count > 0)
+                    {
+                        command = list.First();
+                        list.RemoveFirst();
+
+                        var key = command.command;
+                        if (dictionary.ContainsKey(key))
+                        {
+                            dictionary.Remove(key);
+                        }
+                    }
+                    return command;
+                }
+
+            }
+
+            public void Enqueue(InternalCommand command)
+            {
+                lock (locker)
+                {
+                    //if(list.Count> maxCount)
+                    //{
+                    //    //...
+                    //}
+                    var key = command.command;
+                    if (dictionary.ContainsKey(key))
+                    {
+                        var node = dictionary[key];
+                        node.Value = command;
+                    }
+                    else
+                    {
+                        LinkedListNode<InternalCommand> node = list.AddLast(command);
+                        dictionary.Add(key, node);
+                    }
+
+                }
+            }
+
+            public void Clear()
+            {
+                lock (locker)
+                {
+                    list.Clear();
+                    dictionary.Clear();
+                }
+            }
+        }
 
         private object locker = new object();
         private InternalCommand DequeueCommand()
@@ -265,16 +327,17 @@ namespace VlcPlayer
                 return null;
             }
 
-
             InternalCommand command = null;
-            lock (locker)
-            {
-                if (commandQueue.Count > 0)
-                {
-                    command = commandQueue.Dequeue();
-                }
-            }
 
+            //lock (locker)
+            //{
+            //    if (commandQueue.Count > 0)
+            //    {
+            //        command = commandQueue.Dequeue();
+            //    }
+            //}
+
+            command = _commandQueue.Dequeue();
             return command;
         }
 
@@ -285,12 +348,15 @@ namespace VlcPlayer
                 return;
             }
 
-            lock (locker)
-            {
-                commandQueue.Enqueue(new InternalCommand { command = command, args = args });
-            }
+            //lock (locker)
+            //{            
+            //    commandQueue.Enqueue(new InternalCommand { command = command, args = args });
+            //}
+
+            _commandQueue.Enqueue(new InternalCommand { command = command, args = args });
             syncEvent.Set();
         }
+
 
         public event Action<object> Closed;
         private void OnClosed(object obj)
@@ -306,6 +372,8 @@ namespace VlcPlayer
 
             try
             {
+                SetupPlayback();
+
                 Session.PlaybackState = PlaybackState.Initialized;
 
                 if (!string.IsNullOrEmpty(Session.MediaAddr))
@@ -321,7 +389,7 @@ namespace VlcPlayer
                     try
                     {
                         InternalCommand command = DequeueCommand();
-
+ 
                         if (command != null)
                         {
                             ProcessInternalCommand(command);
@@ -331,19 +399,19 @@ namespace VlcPlayer
                             ProcessStatistic();
                         }
 
-                        if(Session.PlaybackState == PlaybackState.Opening)
-                        {
-                            openingTime += (int)stopwatch.ElapsedMilliseconds;
-                        }
-                        else
-                        {
-                            openingTime = 0;
-                        }
+                        //if(Session.PlaybackState == PlaybackState.Opening)
+                        //{
+                        //    openingTime += (int)stopwatch.ElapsedMilliseconds;
+                        //}
+                        //else
+                        //{
+                        //    openingTime = 0;
+                        //}
 
-                        if(openingTime > 10000)
-                        {
-                            logger.Warn("!!!!!!!!!!!! openingTime=" + openingTime);
-                        }
+                        //if(openingTime > 10000)
+                        //{
+                        //    logger.Warn("!!!!!!!!!!!! openingTime=" + openingTime);
+                        //}
                     }
                     catch (Exception ex)
                     {
@@ -395,6 +463,11 @@ namespace VlcPlayer
             {
                 case "Play":
                     {
+                        if(Session.PlaybackState == PlaybackState.Opening)
+                        {
+                            return;
+                        }
+
                         string mediaLink = "";
                         var args = command.args;
                         if (args != null && args.Length > 0)
@@ -414,15 +487,13 @@ namespace VlcPlayer
                         }
                         else
                         {
-                            Task.Run(() =>
+                            var media = mediaPlayer?.GetMedia();
+                            var mrl = media?.Mrl;
+                            if (!string.IsNullOrEmpty(mrl))
                             {
-                                var media = mediaPlayer?.GetMedia();
-                                var mrl = media?.Mrl;
-                                if (!string.IsNullOrEmpty(mrl))
-                                {
-                                    mediaPlayer.Play(mrl);
-                                }
-                            });
+                               Task.Run(() => mediaPlayer?.Play(mrl));
+                            }
+
                         }
 
                     }
@@ -438,15 +509,13 @@ namespace VlcPlayer
                                 mrl = (string)args[0];
                             }
 
-                            Task.Run(() =>
+                            if (!string.IsNullOrEmpty(mrl))
                             {
-                                if (!string.IsNullOrEmpty(mrl))
-                                {
-                                    logger.Info(mrl);
+                                logger.Info(mrl);
 
-                                    mediaPlayer.Play(mrl);
-                                }
-                            });
+                                Task.Run(() => mediaPlayer?.Play(mrl));
+                            }
+
                         }
                     }
                     break;
@@ -563,40 +632,55 @@ namespace VlcPlayer
                         Session.CurrentTime = TimeSpan.Zero;
                         Session.TotalTime = TimeSpan.Zero;
 
-                        lock (locker)
-                        {
-                            commandQueue.Clear();
-                        }
+                        _commandQueue.Clear();
+
+                        //lock (locker)
+                        //{
+                        //    commandQueue.Clear();
+                        //}
 
                         PostToClientAsync("Stopped");
-                        //PostMessage("Stopped");
                     }
                     break;
-                case "Position":
-                    {
-                        var val0 = "";
-                        var args = command.args;
-                        if (args != null && args.Length > 0)
-                        {
-                            val0 = (string)args[0];
-                        }
-                        double pos = 0;
-                        if (double.TryParse(val0, out pos))
-                        {
-                            SetPlayerPosition(pos);
-                        }
-                    }
-                    break;
-                case "PositionChanged":
-                    {
+                //case "Position":
+                //    {
+                //        var val0 = "";
+                //        var args = command.args;
+                //        if (args != null && args.Length > 0)
+                //        {
+                //            val0 = (string)args[0];
+                //        }
+                //        double pos = 0;
+                //        if (double.TryParse(val0, out pos))
+                //        {
+                //            SetPlayerPosition(pos);
+                //        }
+                //    }
+                //    break;
+                //case "PositionChanged":
+                //    {
 
-                    }
-                    break;
-                case "Mute":
-                    {
-                        mediaPlayer?.Audio?.ToggleMute();
-                    }
-                    break;
+                //    }
+                //    break;
+                //case "Mute":
+                //    {
+ 
+                //        var args = command.args;
+                //        if (args != null && args.Length > 0)
+                //        {
+                //            var mute = bool.Parse((string)args[0]);
+                //            var audio = mediaPlayer?.Audio;
+                //            if (audio != null)
+                //            {
+                //                audio.IsMute = mute;
+                //            }
+                //        }
+                //        else
+                //        {
+                //            mediaPlayer?.Audio?.ToggleMute();
+                //        }
+                //    }
+                //    break;
                 case "Muted":
                     {
                         Session.IsMute = true;
@@ -609,30 +693,30 @@ namespace VlcPlayer
                         PostToClientAsync("Unmuted");
                     }
                     break;
-                case "Volume":
-                    {
-                        var val0 = "";
-                        var args = command.args;
-                        if (args != null && args.Length > 0)
-                        {
-                            val0 = (string)args[0];
-                        }
+                //case "Volume":
+                //    {
+                //        var val0 = "";
+                //        var args = command.args;
+                //        if (args != null && args.Length > 0)
+                //        {
+                //            val0 = (string)args[0];
+                //        }
 
-                        int volume = 0;
-                        if (int.TryParse(val0, out volume))
-                        {
+                //        int volume = 0;
+                //        if (int.TryParse(val0, out volume))
+                //        {
 
-                            SetPlayerVolume(volume);
+                //            SetPlayerVolume(volume);
 
-                            // Task.Run(() => SetPlayerVolume(volume));
-                        }
-                    }
-                    break;
+                //            // Task.Run(() => SetPlayerVolume(volume));
+                //        }
+                //    }
+                //    break;
                 case "AudioVolume":
                     {
                         Session.Volume = (int)mediaPlayer?.Audio?.Volume;
 
-                       // PostToClientAsync("AudioVolume", new object[] { Session.Volume });
+                        //PostToClientAsync("AudioVolume", new object[] { Session.Volume });
                     }
                     break;
                 default:
@@ -717,14 +801,15 @@ namespace VlcPlayer
 
                     EnqueueCommand("PlayMrl", new[] { mrl, mediaLink });
                 }
-                catch (OperationCanceledException)
-                { }
+                //catch (OperationCanceledException)
+                //{ }
                 catch (Exception ex)
-                {
+                {//TODO:
                     logger.Error(ex);
-                    //EnqueueCommand("MediaResourceLocator", new[] { mrl });
-                    Debug.Fail(ex.Message);
-                    Debug.WriteLine(ex);
+                    EnqueueCommand("Stopped");
+
+                    //Debug.Fail(ex.Message);
+                    //Debug.WriteLine(ex);
                 }
             }
 
@@ -735,60 +820,51 @@ namespace VlcPlayer
             logger.Debug("GetMrlAsync(...) " + mediaLink);
 
             string mri = "";
-
-            Uri u = new Uri(mediaLink);
-            if (u.Scheme == "http" || u.Scheme == "https")
+            string videoId = "";
+            if (YoutubeApi.YoutubeClient.TryParseVideoId(mediaLink, out videoId))
             {
-                string videoId = "";
-                if (YoutubeApi.YoutubeClient.TryParseVideoId(mediaLink, out videoId))
+                using (var youtube = new YoutubeApi.YoutubeClient())
                 {
-                    using (var youtube = new YoutubeApi.YoutubeClient())
+                    cancellationToken.Register(() =>
                     {
-                        cancellationToken.Register(() =>
-                        {
-                            youtube?.Dispose();
-                        });
+                        //youtube?.Dispose();
+                    });
 
-                        YoutubeApi.MediaStreamInfo streamInfo = null;
-                        var streamInfoSet = await youtube.GetVideoMediaStreamInfosAsync(videoId);
-                        if (streamInfoSet != null)
+                    YoutubeApi.MediaStreamInfo streamInfo = null;
+                    var streamInfoSet = await youtube.GetVideoMediaStreamInfosAsync(videoId);
+                    if (streamInfoSet != null)
+                    {
+                        if (streamInfoSet.Muxed?.Count > 0)
                         {
-                            if (streamInfoSet.Muxed?.Count > 0)
-                            {
-                                streamInfo = streamInfoSet.Muxed.OrderByDescending(s => s.VideoQuality).FirstOrDefault();
-                            }
-                            else if (streamInfoSet.Video?.Count > 0)
-                            {
-                                streamInfo = streamInfoSet.Video.OrderByDescending(s => s.VideoQuality).FirstOrDefault();
-                            }
-                            else if (streamInfoSet.Audio?.Count > 0)
-                            {
-                                streamInfo = streamInfoSet.Audio.OrderByDescending(s => s.Bitrate).FirstOrDefault();
-                            }
+                            streamInfo = streamInfoSet.Muxed.OrderByDescending(s => s.VideoQuality).FirstOrDefault();
                         }
-
-                        if (streamInfo != null)
+                        else if (streamInfoSet.Video?.Count > 0)
                         {
-                            mri = streamInfo.Url;
+                            streamInfo = streamInfoSet.Video.OrderByDescending(s => s.VideoQuality).FirstOrDefault();
                         }
-                        else
+                        else if (streamInfoSet.Audio?.Count > 0)
                         {
-                            throw new Exception("Unsupported youtube link!");
-                        }                    
+                            streamInfo = streamInfoSet.Audio.OrderByDescending(s => s.Bitrate).FirstOrDefault();
+                        }
                     }
-                }
-                else
-                {// если не youtube 
-                    mri = u.AbsoluteUri;
+
+                    if (streamInfo != null)
+                    {
+                        mri = streamInfo.Url;
+                    }
+                    else
+                    {
+                        throw new Exception("Unsupported youtube link!");
+                    }
                 }
             }
             else
             {
+                Uri u = new Uri(mediaLink);
                 mri = u.AbsoluteUri;
             }
             return mri;
         }
-
 
 
         private void MediaPlayer_Log(object sender, VlcMediaPlayerLogEventArgs e)
@@ -1013,25 +1089,6 @@ namespace VlcPlayer
             videoProvider?.Dispose();
         }
 
-
-
-        public void Log(string msg)
-        {
-            logger.Info(msg);
-
-            //this.Dispatcher.BeginInvoke(DispatcherPriority.Normal,
-            //new Action(() =>
-            //{
-
-            //    string text = DateTime.Now.ToString("HH:mm:ss.fff") + " >> " + msg + "\r";//+ Environment.NewLine;
-            //    Logger.AppendText(text);
-
-
-            //}));
-
-        }
-
-
         internal void ProcessIncomingCommand(string command, object[] args)
         {
 
@@ -1066,17 +1123,30 @@ namespace VlcPlayer
             }
             else if (command == "Mute")
             {
-                EnqueueCommand("Mute");
+                if (!string.IsNullOrEmpty(val0))
+                {
+                    var mute = bool.Parse(val0);
+                    var audio = mediaPlayer?.Audio;
+                    if (audio != null)
+                    {
+                        audio.IsMute = mute;
+                    }
+                }
+                else
+                {
+                    mediaPlayer?.Audio?.ToggleMute();
+                }
+                //EnqueueCommand("Mute" , new[] { val0 });
             }
             else if (command == "Position")
             {
-                //string val1 = "";
-                //if (args?.Length > 1)
-                //{
-                //    val1 = args[1]?.ToString();
-                //}
+                double pos = 0;
+                if (double.TryParse(val0, out pos))
+                {
+                    SetPlayerPosition(pos);
+                }
 
-                EnqueueCommand("Position", new[] { val0 });
+                //EnqueueCommand("Position", new[] { val0 });
             }
             else if (command == "Volume")
             {
@@ -1090,7 +1160,7 @@ namespace VlcPlayer
 
              
             }
-            else if (command == "SwitchVideoAdjustments")
+            else if (command == "SetVideoAdjustments")
             {
                 float enabled = 0;
                 if (float.TryParse(val0, out enabled))
@@ -1098,14 +1168,6 @@ namespace VlcPlayer
                     SetVideoAdjastment(VideoAdjustOptions.Enable, enabled);
                 }
 
-                //if (mediaPlayer.Video != null)
-                //{
-                //    var videoAdjustments = mediaPlayer.Video.Adjustments;
-                //    if (videoAdjustments != null)
-                //    {
-                //        mediaPlayer.Video.Adjustments.Enabled = !videoAdjustments.Enabled;
-                //    }
-                //}
             }
             else if (command == "Brightness")
             {

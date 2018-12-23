@@ -525,7 +525,7 @@ namespace YoutubeApi
             {
                 handler.AutomaticDecompression = DecompressionMethods.GZip | DecompressionMethods.Deflate;
             }
-
+            
             handler.UseCookies = false;
             logger.Debug("new HttpClient()");
             httpClient = new HttpClient(handler, true);
