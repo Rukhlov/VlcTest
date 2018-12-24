@@ -182,6 +182,15 @@ namespace VlcPlayer
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
+
+        public void Reset()
+        {
+            PlaybackStats = null;
+            Position = -1;
+            Volume = -1;
+            CurrentTime = TimeSpan.Zero;
+            TotalTime = TimeSpan.Zero;
+        }
     }
 
     public class MediaResource

@@ -18,6 +18,7 @@
         <KeyBinding Command="{Binding PauseCommand}" Key="Space"/>
         <KeyBinding Command="{Binding StopCommand}" Key="S"/>
         <KeyBinding Command="{Binding QuitCommand}" Key="Q"/>
+        <KeyBinding Command="{Binding MuteCommand}" Key="M"/>
     </Window.InputBindings>
 
     <Window.Resources>

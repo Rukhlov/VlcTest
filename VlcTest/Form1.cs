@@ -1136,13 +1136,17 @@ namespace VlcTest
         {
             var val = trackBarBrightness.Value / 100.0; //(float)(trackBarBrightness.Maximum - trackBarBrightness.Minimum));
 
-            PostMessage("Brightness", new object[] { val });
+            //PostMessage("Brightness", new object[] { val });
+
+            PostMessage("SetAdjustments", new object[] { "Brightness", val });
         }
 
         private void trackBarHue_ValueChanged(object sender, EventArgs e)
         {
             var val = (float)trackBarHue.Value;//(trackBarHue.Value / (float)(trackBarHue.Maximum - trackBarHue.Minimum));
-            PostMessage("Hue", new object[] { val });
+            // PostMessage("Hue", new object[] { val });
+
+            PostMessage("SetAdjustments", new object[] { "Hue", val });
 
         }
 
@@ -1150,7 +1154,9 @@ namespace VlcTest
         {
             var val = (trackBarContrast.Value / 100.0); // (float)(trackBarContrast.Maximum - trackBarContrast.Minimum));
 
-            PostMessage("Contrast", new object[] { val });
+            //PostMessage("Contrast", new object[] { val });
+
+            PostMessage("SetAdjustments", new object[] { "Contrast", val });
         }
 
         private void trackBarGamma_ValueChanged(object sender, EventArgs e)
@@ -1159,7 +1165,9 @@ namespace VlcTest
 
             //var val = (int)trackBarGamma.Value;
 
-            PostMessage("Gamma", new object[] { val });
+            //PostMessage("Gamma", new object[] { val });
+
+            PostMessage("SetAdjustments", new object[] { "Gamma", val });
         }
 
         private void trackBarSaturation_ValueChanged(object sender, EventArgs e)
@@ -1167,13 +1175,17 @@ namespace VlcTest
             var val = (trackBarSaturation.Value / 100.0); // (float)(trackBarSaturation.Maximum - trackBarSaturation.Minimum));
                                                           //var val = (int)trackBarSaturation.Value;
 
-            PostMessage("Saturation", new object[] { val });
+            PostMessage("SetAdjustments", new object[] { "Saturation", val });
+
+            //PostMessage("Saturation", new object[] { val });
         }
 
         private void checkBoxVideoAdjustments_CheckedChanged(object sender, EventArgs e)
         {
             var enable = checkBoxVideoAdjustments.Checked ? 1:0;
-            PostMessage("SetVideoAdjustments", new object[] { enable });
+            PostMessage("SetAdjustments", new object[] {"Enable", enable });
+
+            ////PostMessage("SetVideoAdjustments", new object[] { enable });
         }
 
         private void buttonResetVideoAdjustments_Click(object sender, EventArgs e)

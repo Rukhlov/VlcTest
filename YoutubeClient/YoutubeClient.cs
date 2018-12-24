@@ -864,7 +864,7 @@ namespace YoutubeApi
 
         private async Task<VideoInfoParser> GetVideoInfoParserAsync(string videoId, string el = "embedded")
         {
-            Debug.WriteLine("GetVideoInfoParserAsync(...)");
+            logger.Debug("GetVideoInfoParserAsync(...)");
 
             // This parameter does magic and a lot of videos don't work without it
             var eurl = $"https://youtube.googleapis.com/v/{videoId}".UrlEncode();
