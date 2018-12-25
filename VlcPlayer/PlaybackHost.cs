@@ -239,24 +239,24 @@ namespace VlcPlayer
 
             var player = new VlcMediaPlayer(directory, options);
 
-            // player.Log += MediaPlayer_Log;
+           // player.Log += MediaPlayer_Log;
             player.EncounteredError += MediaPlayer_EncounteredError;
 
             player.Opening += MediaPlayer_Opening;
             player.Playing += MediaPlayer_Playing;
             player.Paused += MediaPlayer_Paused;
-            player.EndReached += Player_EndReached;
+            player.EndReached += MediaPlayer_EndReached;
             player.Stopped += MediaPlayer_Stopped;
             player.MediaChanged += Player_MediaChanged;
             player.PositionChanged += MediaPlayer_PositionChanged;
             //player.TimeChanged += Player_TimeChanged;
             player.LengthChanged += MediaPlayer_LengthChanged;
 
-            player.AudioDevice += Player_AudioDevice;
+            player.AudioDevice += MediaPlayer_AudioDevice;
             player.AudioVolume += MediaPlayer_AudioVolume;
             player.Muted += MediaPlayer_Muted;
-            player.Unmuted += Player_Unmuted; ;
-            player.VideoOutChanged += Player_VideoOutChanged;
+            player.Unmuted += MediaPlayer_Unmuted; ;
+            player.VideoOutChanged += MediaPlayer_VideoOutChanged;
             player.Video.IsKeyInputEnabled = false;
             player.Video.IsMouseInputEnabled = false;
 
@@ -276,14 +276,14 @@ namespace VlcPlayer
         private Thread playbackThread = null;
         private AutoResetEvent syncEvent = new AutoResetEvent(false);
         private volatile bool closing = false;
-        //private Queue<InternalCommand> commandQueue = new Queue<InternalCommand>();
 
-        private CommandQueue _commandQueue = new CommandQueue();
+        private CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+        private CommandQueue commandQueue = new CommandQueue();
         class CommandQueue
         {
             private readonly LinkedList<InternalCommand> list = new LinkedList<InternalCommand>();
 
-            private readonly Dictionary<string, LinkedListNode<InternalCommand>> dictionary = new Dictionary<string, LinkedListNode<InternalCommand>>();
+            private readonly Dictionary<string, LinkedListNode<InternalCommand>> dict = new Dictionary<string, LinkedListNode<InternalCommand>>();
 
             private readonly object locker = new object();
 
@@ -298,9 +298,9 @@ namespace VlcPlayer
                         list.RemoveFirst();
 
                         var key = command.command;
-                        if (dictionary.ContainsKey(key))
+                        if (dict.ContainsKey(key))
                         {
-                            dictionary.Remove(key);
+                            dict.Remove(key);
                         }
                     }
                     return command;
@@ -316,15 +316,15 @@ namespace VlcPlayer
                     //    //...
                     //}
                     var key = command.command;
-                    if (dictionary.ContainsKey(key))
+                    if (dict.ContainsKey(key))
                     {
-                        var node = dictionary[key];
+                        var node = dict[key];
                         node.Value = command;
                     }
                     else
                     {
                         LinkedListNode<InternalCommand> node = list.AddLast(command);
-                        dictionary.Add(key, node);
+                        dict.Add(key, node);
                     }
 
                 }
@@ -335,7 +335,7 @@ namespace VlcPlayer
                 lock (locker)
                 {
                     list.Clear();
-                    dictionary.Clear();
+                    dict.Clear();
                 }
             }
         }
@@ -348,18 +348,7 @@ namespace VlcPlayer
                 return null;
             }
 
-            InternalCommand command = null;
-
-            //lock (locker)
-            //{
-            //    if (commandQueue.Count > 0)
-            //    {
-            //        command = commandQueue.Dequeue();
-            //    }
-            //}
-
-            command = _commandQueue.Dequeue();
-            return command;
+            return commandQueue.Dequeue(); 
         }
 
         private void EnqueueCommand(string command, object[] args = null)
@@ -369,12 +358,7 @@ namespace VlcPlayer
                 return;
             }
 
-            //lock (locker)
-            //{            
-            //    commandQueue.Enqueue(new InternalCommand { command = command, args = args });
-            //}
-
-            _commandQueue.Enqueue(new InternalCommand { command = command, args = args });
+            commandQueue.Enqueue(new InternalCommand { command = command, args = args });
             syncEvent.Set();
         }
 
@@ -403,7 +387,6 @@ namespace VlcPlayer
                     PlayCommand.Execute(Session.MediaAddr);
                 }
 
-                
                 Stopwatch stopwatch = Stopwatch.StartNew();
                 while (true)
                 {
@@ -432,6 +415,8 @@ namespace VlcPlayer
                             logger.Warn("!!!!!!!!!!!! openingTime=" + openingTime);
 
                             EnqueueCommand("Stop");
+
+                            openingTime = 0;
                         }
                     }
                     catch (Exception ex)
@@ -439,322 +424,25 @@ namespace VlcPlayer
                         logger.Error(ex);
                     }
 
-
                     stopwatch.Restart();
                     syncEvent.WaitOne(300);
                     if (closing)
                     {
                         break;
                     }
-
                 }
             }
             catch (Exception ex)
             {
                 logger.Error(ex);
-
             }
             finally
             {
                 CleanUp();
-
             }
 
             logger.Trace("PlaybackProc() END");
         }
-
-
-        private CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
-        private void ProcessPlaybackCommand(InternalCommand command)
-        {
-            logger.Debug("ProcessInternalCommand(...)");
-
-            if (closing)
-            {
-                return;
-            }
-
-            if (command == null)
-            {
-                return;
-            }
-
-            logger.Debug("command " + command.command);
-
-            switch (command.command)
-            {
-                case "Play":
-                    {
-                        if(Session.PlaybackState == PlaybackState.Opening)
-                        {
-                            return;
-                        }
-
-                        string mediaLink = "";
-                        var args = command.args;
-                        if (args?.Length > 0)
-                        {
-                            mediaLink = (string)args[0];
-                        }
-
-                        if (!string.IsNullOrEmpty(mediaLink))
-                        {
-                            Session.PlaybackState = PlaybackState.Opening;
-                            cancellationTokenSource = new CancellationTokenSource();
-                            Task.Run(() =>
-                            {
-                                TryGetMrl(mediaLink, cancellationTokenSource.Token);
-
-                            });
-                        }
-                        else
-                        {
-                            var media = mediaPlayer?.GetMedia();
-                            if (media != null)
-                            {
-                                logger.Debug("mediaState " + media.State);
-                                var mrl = media.Mrl;
-                                if (!string.IsNullOrEmpty(mrl))
-                                {
-                                    Task.Run(() => mediaPlayer?.Play(mrl));
-                                }
-                            }
-                        }
-
-                    }
-                    break;
-                case "PlayMrl":
-                    {
-
-                        //if(Session.PlaybackState == PlaybackState.Stopped)
-                        //{
-                        //    return;
-                        //}
-
-                        if (Session.PlaybackState == PlaybackState.Opening)
-                        {
-                            string mrl = "";
-                            var args = command.args;
-                            if (args != null && args.Length > 0)
-                            {
-                                mrl = (string)args[0];
-                            }
-
-                            if (!string.IsNullOrEmpty(mrl))
-                            {
-                                logger.Info(mrl);
-
-                                Task.Run(() => mediaPlayer?.Play(mrl));
-                            }
-
-                        }
-                    }
-                    break;
-                case "Opening":
-                    {
-                        ResetSession();
-
-                        Session.PlaybackState = PlaybackState.Opening;
-                        Session.PlaybackStats = new PlaybackStatistics();
-
-                        InvokeEventAsync("Opening");
-                    }
-                    break;
-                case "LengthChanged":
-                    {
-                        var args = command.args;
-                        if (args != null && args.Length > 0)
-                        {
-                            var msecTotal = (long)args[0];
-                            Session.TotalTime = TimeSpan.FromMilliseconds(msecTotal);
-                            InvokeEventAsync("LengthChanged", new object[] { msecTotal });
-                        }
-
-                    }
-                    break;
-                case "Playing":
-                    {
-                        openingTime = 0;
-                        Session.PlaybackState = PlaybackState.Playing;
-
-                        var media = mediaPlayer?.GetMedia();
-                        var mediaStr = media?.GetInfoString();
-                        logger.Info(mediaStr);
-
-                        //Session.PlaybackStats = new PlaybackStatistics();
-
-                        InvokeEventAsync("Playing", new object[] { });
-                    }
-                    break;
-                case "Pause":
-                    {
-                        if (Session.PlaybackState == PlaybackState.Paused ||
-                            Session.PlaybackState == PlaybackState.Playing)
-                        {
-                            if (mediaPlayer != null)
-                            {
-                                if (mediaPlayer.IsPausable())
-                                {
-                                    mediaPlayer.Pause();
-                                }
-                            }
-                        }
-                    }
-                    break;
-                case "Paused":
-                    {
-                        Session.PlaybackState = PlaybackState.Paused;
-                        InvokeEventAsync("Paused");
-                    }
-                    break;
-                case "Stop":
-                    {
-                        cancellationTokenSource?.Cancel();
-
-                        mediaPlayer?.Stop();
-                    }
-                    break;
-                case "MediaChanged":
-                    {
-                        var media = mediaPlayer?.GetMedia();
-                        if (media != null)
-                        {
-                            Session.Mrl = media.Mrl;
-
-                            //Session.Position = 0;
-                            //Session.CurrentTime = TimeSpan.Zero;
-                            //Session.TotalTime = TimeSpan.Zero;//media.Duration;
-
-                            //logger.Info(media.GetInfoString());
-                        }
-                    }
-                    break;
-                case "EndReached":
-                    {
-                        if (loopPlayback)
-                        {
-                            EnqueueCommand("Play");
-                            InvokeEventAsync("Restart");
-
-                            //Task.Run(() => StartPlaying("", cancellationTokenSource.Token));
-                        }
-                    }
-                    break;
-                case "EncounteredError":
-                    {
-                        //Session.PlaybackState = PlaybackState.Failed;
-
-                        logger.Error("EncounteredError");
-                    }
-                    break;
-                case "Stopped":
-                    {
-
-                        Session.PlaybackState = PlaybackState.Stopped;
-
-                        ResetSession();
-
-                        //lock (locker)
-                        //{
-                        //    commandQueue.Clear();
-                        //}
-
-                        InvokeEventAsync("Stopped");
-                    }
-                    break;
-                case "Position":
-                    {
-                        if (Session.PlaybackState == PlaybackState.Playing || Session.PlaybackState == PlaybackState.Paused)
-                        {
-                            var arg0 = "";
-                            var args = command.args;
-                            if (args?.Length > 0)
-                            {
-                                arg0 = args[0]?.ToString();
-                            }
-
-                            double pos = 0;
-                            if (double.TryParse(arg0, out pos))
-                            {
-                                SetPlayerPosition(pos);
-                            }
-                        }
-                    }
-                    break;
-                case "SetAdjustments":
-                    {
-                        SetVideoAdjustment(command.args);
-                    }
-                    break;
-                case "Mute":
-                    {
-                        var arg0 = "";
-                        var args = command.args;
-                        if (args?.Length > 0)
-                        {
-                            arg0 = args[0]?.ToString();
-                        }
-
-                        if (!string.IsNullOrEmpty(arg0))
-                        {
-                            var mute = bool.Parse(arg0);
-                            var audio = mediaPlayer?.Audio;
-                            if (audio != null)
-                            {
-                                audio.IsMute = mute;
-                            }
-                        }
-                        else
-                        {
-                            mediaPlayer?.Audio?.ToggleMute();
-                        }
-                    }
-                    break;
-                case "Muted":
-                    {
-                        Session.IsMute = true;
-                        InvokeEventAsync("Muted");
-                    }
-                    break;
-                case "Unmuted":
-                    {
-                        Session.IsMute = false;
-                        InvokeEventAsync("Unmuted");
-                    }
-                    break;
-                case "Volume":
-                    {
-                        var args = command.args;
-                        var arg0 = "";
-                        if (args?.Length > 0)
-                        {
-                            arg0 = args[0]?.ToString();
-                        }
-
-                        int volume = 0;
-                        if (int.TryParse(arg0, out volume))
-                        {
-                            SetPlayerVolume(volume);
-                        }
-                    }
-                    break;
-                case "AudioVolume":
-                    {
-                        Session.Volume = (int)mediaPlayer?.Audio?.Volume;
-
-                        //PostToClientAsync("AudioVolume", new object[] { Session.Volume });
-                    }
-                    break;
-                default:
-                    {
-
-                    }
-                    break;
-
-            }
-
-        }
-
 
         private void ProcessPlaybackState()
         {
@@ -780,38 +468,299 @@ namespace VlcPlayer
                         playbackStats.PlayedAudioBuffers = stats.PlayedAudioBuffers;
 
                     }
-
-                    float pos = float.NaN;
-                    if (mediaPlayer != null)
-                    {
-                        pos = mediaPlayer.Position;
-                    }
-
-                    if (!float.IsNaN(pos))
-                    {
-                        if (Session.Position != pos)
-                        {
-                            Session.Position = pos;
-
-                            // Session.TotalTime = media.Duration;
-                            var msec = Session.TotalTime.TotalMilliseconds * pos;
-
-                            Session.CurrentTime = TimeSpan.FromMilliseconds(msec);
-
-                            InvokeEventAsync("Position", new object[] { Session.Position, /*Session.CurrentTime, Session.TotalTime */});
-                        }
-                    }
                 }
                 else
                 {
                     //...
                 }
 
+                float currentPosition = float.NaN;
+                if (mediaPlayer != null)
+                {
+                    currentPosition = mediaPlayer.Position;
+                }
+
+                if (!float.IsNaN(currentPosition))
+                {
+                    if (Session.Position != currentPosition)
+                    {
+                        Session.Position = currentPosition;
+
+                        // Session.TotalTime = media.Duration;
+                        var msec = Session.TotalTime.TotalMilliseconds * currentPosition;
+
+                        Session.CurrentTime = TimeSpan.FromMilliseconds(msec);
+
+                        InvokeEventAsync("Position", new object[] { Session.Position});
+                    }
+                }
+
+
 
             }
         }
 
-        internal async void TryGetMrl(string mediaLink, CancellationToken cancellationToken)
+        private void ProcessPlaybackCommand(InternalCommand command)
+        {
+            logger.Debug("ProcessInternalCommand(...)");
+
+            if (closing)
+            {
+                return;
+            }
+
+            if (command == null)
+            {
+                return;
+            }
+
+            logger.Debug("command " + command.command);
+
+            switch (command.command)
+            {
+                case "Play":
+                    {
+                        if (Session.PlaybackState == PlaybackState.Opening)
+                        {
+                            return;
+                        }
+
+                        DoPlay(command.args);
+
+                    }
+                    break;
+                case "PlayMrl":
+                    {
+                        if (Session.PlaybackState == PlaybackState.Opening)
+                        {
+                            DoPlayMrl(command.args);
+                        }
+                    }
+                    break;
+                case "Opening":
+                    {
+                        ResetSession();
+
+                        Session.PlaybackState = PlaybackState.Opening;
+                        Session.PlaybackStats = new PlaybackStatistics();
+
+                        InvokeEventAsync("Opening");
+                    }
+                    break;
+                case "LengthChanged":
+                    {
+                        var args = command.args;
+                        if (args?.Length > 0)
+                        {
+                            var msecTotal = (long)args[0];
+                            Session.TotalTime = TimeSpan.FromMilliseconds(msecTotal);
+                            InvokeEventAsync("LengthChanged", new object[] { msecTotal });
+                        }
+
+                    }
+                    break;
+                case "Playing":
+                    {
+                        openingTime = 0;
+                        Session.PlaybackState = PlaybackState.Playing;
+
+                        var media = mediaPlayer?.GetMedia();
+                        var mediaStr = media?.GetInfoString();
+                        logger.Info(mediaStr);
+
+                        Session.Mrl = media.Mrl;
+
+                        //Session.PlaybackStats = new PlaybackStatistics();
+
+                        InvokeEventAsync("Playing", new object[] { });
+                    }
+                    break;
+                case "Pause":
+                    {
+                        if (Session.PlaybackState == PlaybackState.Paused ||
+                            Session.PlaybackState == PlaybackState.Playing)
+                        {
+                            DoPause();
+                        }
+                    }
+                    break;
+                case "Paused":
+                    {
+                        Session.PlaybackState = PlaybackState.Paused;
+                        InvokeEventAsync("Paused");
+                    }
+                    break;
+                case "Stop":
+                    {
+                        DoStop();
+                    }
+                    break;
+                case "MediaChanged":
+                    {
+                        var media = mediaPlayer?.GetMedia();
+                        if (media != null)
+                        {
+                            Session.Mrl = media.Mrl;
+
+                            //Session.Position = 0;
+                            //Session.CurrentTime = TimeSpan.Zero;
+                            //Session.TotalTime = TimeSpan.Zero;//media.Duration;
+
+                            //logger.Info(media.GetInfoString());
+                        }
+                    }
+                    break;
+                case "EncounteredError":
+                    {
+                        //Session.PlaybackState = PlaybackState.Failed;
+                        logger.Error("EncounteredError");
+                    }
+                    break;
+                case "Stopped":
+                    {
+                        if (!cancellationTokenSource.IsCancellationRequested)
+                        {
+                            if (loopPlayback)
+                            {
+                                var media = mediaPlayer?.GetMedia();
+                                if (ValidateMedia(media))
+                                {
+                                    EnqueueCommand("Play");
+                                    InvokeEventAsync("Restarting");
+                                    break;
+                                }
+                            }
+                        }
+
+                        Session.PlaybackState = PlaybackState.Stopped;
+                        ResetSession();
+
+                        InvokeEventAsync("Stopped");
+                        
+                    }
+                    break;
+                case "Position":
+                    {
+                        if (Session.PlaybackState == PlaybackState.Playing || Session.PlaybackState == PlaybackState.Paused)
+                        {
+                            SetPosition(command.args);
+                        }
+                    }
+                    break;
+                case "SetAdjustments":
+                    {
+                        SetVideoAdjustment(command.args);
+                    }
+                    break;
+
+                case "Mute":
+                    {
+                        SetMute(command.args);
+                    }
+                    break;
+                case "Muted":
+                    {
+                        Session.IsMute = true;
+                        InvokeEventAsync("Muted");
+                    }
+                    break;
+                case "Unmuted":
+                    {
+                        Session.IsMute = false;
+                        InvokeEventAsync("Unmuted");
+                    }
+                    break;
+                case "Volume":
+                    {
+                        SetVolume(command.args);
+                    }
+                    break;
+                case "AudioVolume":
+                    {
+                        Session.Volume = (int)mediaPlayer?.Audio?.Volume;
+
+                        //PostToClientAsync("AudioVolume", new object[] { Session.Volume });
+                    }
+                    break;
+                default:
+                    {
+
+                    }
+                    break;
+
+            }
+
+        }
+
+        private void DoPlay(object[] args)
+        {
+            logger.Debug("DoPlay(...)");
+            string mediaLink = "";
+            if (args?.Length > 0)
+            {
+                mediaLink = (string)args[0];
+            }
+
+            if (!string.IsNullOrEmpty(mediaLink))
+            {
+                Session.PlaybackState = PlaybackState.Opening;
+                cancellationTokenSource = new CancellationTokenSource();
+                Task.Run(() =>
+                {
+                    TryGetMrl(mediaLink, cancellationTokenSource.Token);
+
+                });
+            }
+            else
+            {
+                var media = mediaPlayer?.GetMedia();
+                if (media != null)
+                {
+                    DoPlayMrl(new[] { media.Mrl });
+                }
+            }
+        }
+
+        private void DoPlayMrl(object[] args)
+        {
+            logger.Debug("DoPlayMrl(...)");
+            string mrl = "";
+            if (args?.Length > 0)
+            {
+                mrl = args[0]?.ToString();
+            }
+
+            if (!string.IsNullOrEmpty(mrl))
+            {
+                //logger.Info(mrl);
+                mediaPlayer?.Play(mrl);
+            }
+        }
+
+        private void DoPause()
+        {
+            logger.Debug("DoPause(...)");
+
+            if (mediaPlayer != null)
+            {
+                if (mediaPlayer.IsPausable())
+                {
+                    mediaPlayer.Pause();
+                }
+            }
+        }
+
+        private void DoStop()
+        {
+            logger.Debug("DoStop(...)");
+
+            cancellationTokenSource?.Cancel();
+
+            mediaPlayer?.Stop();
+        }
+
+
+        private async void TryGetMrl(string mediaLink, CancellationToken cancellationToken)
         {
             logger.Debug("TryGetMrl(...) " + mediaLink);
 
@@ -828,11 +777,17 @@ namespace VlcPlayer
 
                     EnqueueCommand("PlayMrl", new[] { mrl, mediaLink });
                 }
-                //catch (OperationCanceledException)
-                //{ }
                 catch (Exception ex)
-                {//TODO:
-                    logger.Error(ex);
+                {
+                    if(ex is OperationCanceledException)
+                    {
+                        logger.Warn(ex);
+                    }
+                    else
+                    {
+                        logger.Error(ex);
+                    }
+                   
                     EnqueueCommand("Stopped");
 
                     //Debug.Fail(ex.Message);
@@ -844,6 +799,24 @@ namespace VlcPlayer
 
         private async Task<string> GetMrlAsync(string mediaLink, CancellationToken cancellationToken)
         {
+            var tcs = new TaskCompletionSource<string>();
+            cancellationToken.Register(() =>
+            {
+                tcs.TrySetCanceled();
+            });
+
+            var getMrlTask = GetMrlAsync(mediaLink);
+            var completedTask = await Task.WhenAny(getMrlTask, tcs.Task);
+            if (completedTask == getMrlTask)
+            {
+                var result = await getMrlTask;
+                tcs.TrySetResult(result);
+            }
+            return await tcs.Task;
+        }
+
+        private async Task<string> GetMrlAsync(string mediaLink)
+        {
             logger.Debug("GetMrlAsync(...) " + mediaLink);
 
             string mri = "";
@@ -852,11 +825,6 @@ namespace VlcPlayer
             {
                 using (var youtube = new YoutubeApi.YoutubeClient())
                 {
-                    cancellationToken.Register(() =>
-                    {
-                        //youtube?.Dispose();
-                    });
-
                     YoutubeApi.MediaStreamInfo streamInfo = null;
                     var streamInfoSet = await youtube.GetVideoMediaStreamInfosAsync(videoId);
                     if (streamInfoSet != null)
@@ -894,29 +862,187 @@ namespace VlcPlayer
         }
 
 
+
+
+        private bool ValidateMedia(VlcMedia media)
+        {
+            bool isValidMedia = false;
+            if (media != null)
+            {
+                var duration = media.Duration;
+
+                isValidMedia = (duration != TimeSpan.Zero && duration < TimeSpan.MaxValue && duration > TimeSpan.MinValue);
+                isValidMedia &= media.Tracks.Any(t => t.Type == MediaTrackTypes.Audio || t.Type == MediaTrackTypes.Video);
+            }
+            return isValidMedia;
+        }
+
+
+        private void SetVolume(object[] args)
+        {
+            var arg0 = "";
+            if (args?.Length > 0)
+            {
+                arg0 = args[0]?.ToString();
+            }
+
+            int volume = 0;
+            if (int.TryParse(arg0, out volume))
+            {
+                SetPlayerVolume(volume);
+            }
+        }
+
+        private void SetPosition(object[] args)
+        {
+            var arg0 = "";
+            if (args?.Length > 0)
+            {
+                arg0 = args[0]?.ToString();
+            }
+
+            double pos = 0;
+            if (double.TryParse(arg0, out pos))
+            {
+                SetPlayerPosition(pos);
+            }
+        }
+
+        private void SetMute(object[] args)
+        {
+            var arg0 = "";
+            if (args?.Length > 0)
+            {
+                arg0 = args[0]?.ToString();
+            }
+
+            if (!string.IsNullOrEmpty(arg0))
+            {
+                var mute = bool.Parse(arg0);
+                var audio = mediaPlayer?.Audio;
+                if (audio != null)
+                {
+                    audio.IsMute = mute;
+                }
+            }
+            else
+            {
+                mediaPlayer?.Audio?.ToggleMute();
+            }
+        }
+
+        private void SetVideoAdjustment(object[] args)
+        {
+            var arg0 = "";
+            var arg1 = "";
+            if (args?.Length > 1)
+            {
+                arg0 = args[0]?.ToString();
+                arg1 = args[1]?.ToString();
+            }
+
+            var video = mediaPlayer?.Video;
+            var videoAdjustments = video?.Adjustments;
+
+            if (videoAdjustments != null)
+            {
+                /*
+                 *  contrast <float> : Contrast (0.0 - 2.0). default value: 1.0
+                    brightness <float> : Brightness (0.0 - 2.0). default value: 1.0
+                    hue <integer> : Hue (0 - 360). default value: 0
+                    saturation <float> : Saturation (0.0 - 3.0). default value: 1.0
+                    gamma <float> : Gamma (0.01 - 10.0). default value: 1.0 
+                 */
+
+                if (arg0 == "Enable")
+                {
+                    float _enabled = 0;
+                    if (float.TryParse(arg1, out _enabled))
+                    {
+                        bool enabled = (_enabled != 0);
+
+                        //if (videoAdjustments.Enabled != enabled)// libvlc_video_get_adjust_int() always return 0
+                        {
+                            videoAdjustments.Enabled = enabled;
+                        }
+                    }
+
+                }
+                else if (arg0 == "Contrast")
+                {
+                    float contrast = 0;
+                    if (float.TryParse(arg1, out contrast))
+                    {
+                        if (videoAdjustments.Contrast != contrast)
+                        {
+                            videoAdjustments.Contrast = contrast;
+                        }
+                    }
+                }
+                else if (arg0 == "Brightness")
+                {
+                    float brightness = 0;
+                    if (float.TryParse(arg1, out brightness))
+                    {
+                        if (videoAdjustments.Brightness != brightness)
+                        {
+                            videoAdjustments.Brightness = brightness;
+                        }
+                    }
+                }
+                else if (arg0 == "Gamma")
+                {
+                    float gamma = 0;
+                    if (float.TryParse(arg1, out gamma))
+                    {
+                        if (videoAdjustments.Gamma != gamma)
+                        {
+                            videoAdjustments.Gamma = gamma;
+                        }
+                    }
+                }
+                else if (arg0 == "Hue")
+                {
+                    float hue = 0;
+                    if (float.TryParse(arg1, out hue))
+                    {
+                        if (videoAdjustments.Hue != hue)
+                        {
+                            videoAdjustments.Hue = hue;
+                        }
+                    }
+                }
+                else if (arg0 == "Saturation")
+                {
+                    float saturation = 0;
+                    if (float.TryParse(arg1, out saturation))
+                    {
+                        if (videoAdjustments.Saturation != saturation)
+                        {
+                            videoAdjustments.Saturation = saturation;
+                        }
+                    }
+                }
+            }
+        }
+
+
         private void MediaPlayer_Log(object sender, VlcMediaPlayerLogEventArgs e)
         {
-            // string message = $"libVlc : {e.Level} {e.Message} @ {e.Module}";
-            //if (e.Level == VlcLogLevel.Error || e.Level == VlcLogLevel.Warning)
-            //{
-            //    Log(e.Message);
-            //}
-
-            //logger.Debug(e.Message);
+            string message = $"libVlc : {e.Level} {e.Message} @ {e.Module}";
+            logger.Debug(e.Message);
         }
 
         private void MediaPlayer_EncounteredError(object sender, VlcMediaPlayerEncounteredErrorEventArgs e)
         {
-            logger.Trace("MediaPlayer.EncounteredError(...) ");
-
-            // Session.PlaybackState = PlaybackState.Failed;
-
+            logger.Trace("MediaPlayer_EncounteredError(...) ");
+           
             EnqueueCommand("EncounteredError");
         }
 
         private void MediaPlayer_Opening(object sender, VlcMediaPlayerOpeningEventArgs e)
         {
-            logger.Trace("Opening(...) ");
+            logger.Trace("MediaPlayer_Opening(...) ");
 
             EnqueueCommand("Opening");
 
@@ -925,14 +1051,14 @@ namespace VlcPlayer
 
         }
 
-        private void Player_VideoOutChanged(object sender, VlcMediaPlayerVideoOutChangedEventArgs e)
+        private void MediaPlayer_VideoOutChanged(object sender, VlcMediaPlayerVideoOutChangedEventArgs e)
         {
-            logger.Trace("Player_VideoOutChanged(...) " + e.NewCount);
+            logger.Trace("MediaPlayer_VideoOutChanged(...) " + e.NewCount);
         }
 
-        private void Player_AudioDevice(object sender, VlcMediaPlayerAudioDeviceEventArgs e)
+        private void MediaPlayer_AudioDevice(object sender, VlcMediaPlayerAudioDeviceEventArgs e)
         {
-            logger.Trace("Player_AudioDevice(...) " + e.Device);
+            logger.Trace("MediaPlayer_AudioDevice(...) " + e.Device);
 
         }
 
@@ -951,32 +1077,32 @@ namespace VlcPlayer
             EnqueueCommand("Paused");
         }
 
-        private void Player_EndReached(object sender, VlcMediaPlayerEndReachedEventArgs e)
+        private void MediaPlayer_EndReached(object sender, VlcMediaPlayerEndReachedEventArgs e)
         {
             logger.Debug("Player_EndReached(...)");
 
-            EnqueueCommand("EndReached");
+            //EnqueueCommand("EndReached");
         }
 
         private void MediaPlayer_Stopped(object sender, VlcMediaPlayerStoppedEventArgs e)
         {
-            logger.Debug("Stopped(...) " + mediaPlayer.State);
+            logger.Debug("MediaPlayer_Stopped(...) " + mediaPlayer.State);
 
             EnqueueCommand("Stopped");
         }
 
         private void Player_MediaChanged(object sender, VlcMediaPlayerMediaChangedEventArgs e)
         {
-            logger.Debug("Player_MediaChanged(...)");
+            //logger.Debug("Player_MediaChanged(...)");
 
-            EnqueueCommand("MediaChanged", new object[] { });
+            //EnqueueCommand("MediaChanged", new object[] { });
         }
 
 
 
         private void MediaPlayer_PositionChanged(object sender, VlcMediaPlayerPositionChangedEventArgs e)
         {
-            logger.Debug("PositionChanged(...) " + e.NewPosition);
+            logger.Debug("MediaPlayer_PositionChanged(...) " + e.NewPosition);
             //EnqueueCommand("PositionChanged", new object[] { e.NewPosition });
         }
 
@@ -987,7 +1113,7 @@ namespace VlcPlayer
 
         private void MediaPlayer_LengthChanged(object sender, VlcMediaPlayerLengthChangedEventArgs e)
         {
-            logger.Trace("LengthChanged(...)");
+            logger.Trace("MediaPlayer_LengthChanged(...)");
             EnqueueCommand("LengthChanged", new object[] { e.NewLength });
 
         }
@@ -999,9 +1125,9 @@ namespace VlcPlayer
             EnqueueCommand("Muted");
         }
 
-        private void Player_Unmuted(object sender, EventArgs e)
+        private void MediaPlayer_Unmuted(object sender, EventArgs e)
         {
-            logger.Debug("Player_Unmuted(...)");
+            logger.Debug("MediaPlayer_Unmuted(...)");
 
             EnqueueCommand("Unmuted");
 
@@ -1009,7 +1135,7 @@ namespace VlcPlayer
 
         private void MediaPlayer_AudioVolume(object sender, VlcMediaPlayerAudioVolumeEventArgs e)
         {
-            logger.Debug("AudioVolume(...) ");
+            logger.Debug("MediaPlayer_AudioVolume(...) ");
 
             EnqueueCommand("AudioVolume");
 
@@ -1055,7 +1181,7 @@ namespace VlcPlayer
             openingTime = 0;
 
             Session.Reset();
-            _commandQueue.Clear();
+            commandQueue.Clear();
         }
 
         public void CleanUp()
@@ -1071,15 +1197,15 @@ namespace VlcPlayer
                 mediaPlayer.Opening -= MediaPlayer_Opening;
                 mediaPlayer.Playing -= MediaPlayer_Playing;
                 mediaPlayer.Paused -= MediaPlayer_Paused;
-                mediaPlayer.EndReached -= Player_EndReached;
+                mediaPlayer.EndReached -= MediaPlayer_EndReached;
                 mediaPlayer.Stopped -= MediaPlayer_Stopped;
                 mediaPlayer.PositionChanged -= MediaPlayer_PositionChanged;
                 mediaPlayer.LengthChanged -= MediaPlayer_LengthChanged;
-                mediaPlayer.AudioDevice -= Player_AudioDevice;
+                mediaPlayer.AudioDevice -= MediaPlayer_AudioDevice;
                 mediaPlayer.AudioVolume -= MediaPlayer_AudioVolume;
                 mediaPlayer.Muted -= MediaPlayer_Muted;
-                mediaPlayer.Unmuted -= Player_Unmuted; ;
-                mediaPlayer.VideoOutChanged -= Player_VideoOutChanged;
+                mediaPlayer.Unmuted -= MediaPlayer_Unmuted; ;
+                mediaPlayer.VideoOutChanged -= MediaPlayer_VideoOutChanged;
 
                 mediaPlayer.Dispose();
                 mediaPlayer = null;
@@ -1190,133 +1316,6 @@ namespace VlcPlayer
                     }
                 }
             });
-        }
-
-        private void SetVideoAdjustment(object[] args)
-        {
-            var arg0 = "";
-            if (args?.Length > 0)
-            {
-                arg0 = args[0]?.ToString();
-            }
-
-            var arg1 = "";
-            if (args?.Length > 1)
-            {
-                arg1 = args[1]?.ToString();
-            }
-
-            if (arg0 == "Enable")
-            {
-                float enabled = 0;
-                if (float.TryParse(arg1, out enabled))
-                {
-                    SetVideoAdjustment(VideoAdjustOptions.Enable, enabled);
-                }
-
-            }
-            else if (arg0 == "Contrast")
-            {
-                float contrast = 0;
-                if (float.TryParse(arg1, out contrast))
-                {
-                    SetVideoAdjustment(VideoAdjustOptions.Contrast, contrast);
-                }
-            }
-            else if (arg0 == "Brightness")
-            {
-                float brightness = 0;
-                if (float.TryParse(arg1, out brightness))
-                {
-                    SetVideoAdjustment(VideoAdjustOptions.Brightness, brightness);
-                }
-            }
-            else if (arg0 == "Gamma")
-            {
-                float gamma = 0;
-                if (float.TryParse(arg1, out gamma))
-                {
-                    SetVideoAdjustment(VideoAdjustOptions.Gamma, gamma);
-                }
-            }
-            else if (arg0 == "Hue")
-            {
-                float hue = 0;
-                if (float.TryParse(arg1, out hue))
-                {
-                    SetVideoAdjustment(VideoAdjustOptions.Hue, hue);
-                }
-            }
-            else if (arg0 == "Saturation")
-            {
-                float saturation = 0;
-                if (float.TryParse(arg1, out saturation))
-                {
-                    SetVideoAdjustment(VideoAdjustOptions.Saturation, saturation);
-                }
-            }
-        }
-
-        private void SetVideoAdjustment(VideoAdjustOptions opts, float val)
-        {
-            /*
-             *  contrast <float> : Contrast (0.0 - 2.0). default value: 1.0
-                brightness <float> : Brightness (0.0 - 2.0). default value: 1.0
-                hue <integer> : Hue (0 - 360). default value: 0
-                saturation <float> : Saturation (0.0 - 3.0). default value: 1.0
-                gamma <float> : Gamma (0.01 - 10.0). default value: 1.0 
-             */
-
-            var video = mediaPlayer?.Video;
-            var videoAdjustments = video?.Adjustments;
-            if (videoAdjustments != null)
-            {
-                if (opts == VideoAdjustOptions.Brightness)
-                {
-                    if (videoAdjustments.Brightness != val)
-                    {
-                        videoAdjustments.Brightness = val;
-                    }
-                }
-                else if (opts == VideoAdjustOptions.Contrast)
-                {
-                    if (videoAdjustments.Contrast != val)
-                    {
-                        videoAdjustments.Contrast = val;
-                    }
-                }
-                else if (opts == VideoAdjustOptions.Gamma)
-                {
-                    if (videoAdjustments.Gamma != val)
-                    {
-                        videoAdjustments.Gamma = val;
-                    }
-                }
-                else if (opts == VideoAdjustOptions.Hue)
-                {
-                    if (videoAdjustments.Hue != val)
-                    {
-                        videoAdjustments.Hue = val;
-                    }
-                }
-                else if (opts == VideoAdjustOptions.Saturation)
-                {
-                    if (videoAdjustments.Saturation != val)
-                    {
-                        videoAdjustments.Saturation = val;
-                    }
-                }
-                else if (opts == VideoAdjustOptions.Enable)
-                {
-                    bool enabled = (val != 0);
-
-                    //if (videoAdjustments.Enabled != enabled)// libvlc_video_get_adjust_int() always return 0
-                    {
-                        videoAdjustments.Enabled = enabled;
-                    }
-                }
-            }
-
         }
 
         internal void IncrBlurRadius(int delta)
@@ -1742,6 +1741,8 @@ namespace VlcPlayer
 
     static class VlcExtensions
     {
+
+
         public static string GetInfoString(this VlcMedia media)
         {
             StringBuilder sb = new StringBuilder();
