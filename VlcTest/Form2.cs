@@ -5,6 +5,7 @@ using System.Data;
 using System.Drawing;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 
@@ -17,10 +18,10 @@ namespace VlcTest
             InitializeComponent();
         }
 
-        public void StartRender(object [] args)
+        public void StartRender(string appId)
         {
 
-            videoControl1?.Start(args);
+            videoControl1?.Start(appId);
         }
 
         public void StopRender()

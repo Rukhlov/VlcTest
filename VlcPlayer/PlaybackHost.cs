@@ -50,6 +50,8 @@ namespace VlcPlayer
             this.videoProvider = new VideoProvider(this);
             this.audioProvider = new AudioProvider(this);
 
+            this.mrlProvider = new MrlProvider(this);
+
             Session.PlaybackState = PlaybackState.Created;
 
         }
@@ -65,6 +67,7 @@ namespace VlcPlayer
 
         private bool loopPlayback = false;
 
+        private MrlProvider mrlProvider = null;
         private VideoWindow videoWindow = null;
         public VideoWindow VideoWindow
         {
@@ -239,7 +242,7 @@ namespace VlcPlayer
 
             var player = new VlcMediaPlayer(directory, options);
 
-           // player.Log += MediaPlayer_Log;
+            //player.Log += MediaPlayer_Log;
             player.EncounteredError += MediaPlayer_EncounteredError;
 
             player.Opening += MediaPlayer_Opening;
@@ -257,6 +260,8 @@ namespace VlcPlayer
             player.Muted += MediaPlayer_Muted;
             player.Unmuted += MediaPlayer_Unmuted; ;
             player.VideoOutChanged += MediaPlayer_VideoOutChanged;
+
+            // player.Buffering += Player_Buffering;
             player.Video.IsKeyInputEnabled = false;
             player.Video.IsMouseInputEnabled = false;
 
@@ -266,6 +271,10 @@ namespace VlcPlayer
 
         }
 
+        private void Player_Buffering(object sender, VlcMediaPlayerBufferingEventArgs e)
+        {
+            logger.Debug("Player_Buffering(...) " + e.NewCache);
+        }
 
         class InternalCommand
         {
@@ -277,7 +286,7 @@ namespace VlcPlayer
         private AutoResetEvent syncEvent = new AutoResetEvent(false);
         private volatile bool closing = false;
 
-        private CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
+        // private CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
         private CommandQueue commandQueue = new CommandQueue();
         class CommandQueue
         {
@@ -348,7 +357,7 @@ namespace VlcPlayer
                 return null;
             }
 
-            return commandQueue.Dequeue(); 
+            return commandQueue.Dequeue();
         }
 
         private void EnqueueCommand(string command, object[] args = null)
@@ -491,7 +500,7 @@ namespace VlcPlayer
 
                         Session.CurrentTime = TimeSpan.FromMilliseconds(msec);
 
-                        InvokeEventAsync("Position", new object[] { Session.Position});
+                        InvokeEventAsync("Position", new object[] { Session.Position });
                     }
                 }
 
@@ -618,7 +627,8 @@ namespace VlcPlayer
                     break;
                 case "Stopped":
                     {
-                        if (!cancellationTokenSource.IsCancellationRequested)
+                        // if (!cancellationTokenSource.IsCancellationRequested)
+                        if (!stopping)
                         {
                             if (loopPlayback)
                             {
@@ -631,12 +641,12 @@ namespace VlcPlayer
                                 }
                             }
                         }
-
+                        stopping = false;
                         Session.PlaybackState = PlaybackState.Stopped;
                         ResetSession();
 
                         InvokeEventAsync("Stopped");
-                        
+
                     }
                     break;
                 case "Position":
@@ -704,10 +714,10 @@ namespace VlcPlayer
             if (!string.IsNullOrEmpty(mediaLink))
             {
                 Session.PlaybackState = PlaybackState.Opening;
-                cancellationTokenSource = new CancellationTokenSource();
+
                 Task.Run(() =>
                 {
-                    TryGetMrl(mediaLink, cancellationTokenSource.Token);
+                    mrlProvider.FetchMrl(mediaLink);
 
                 });
             }
@@ -749,120 +759,16 @@ namespace VlcPlayer
                 }
             }
         }
-
+        private bool stopping = false;
         private void DoStop()
         {
             logger.Debug("DoStop(...)");
 
-            cancellationTokenSource?.Cancel();
-
+            // cancellationTokenSource?.Cancel();
+            stopping = true;
+            mrlProvider?.Reset();
             mediaPlayer?.Stop();
         }
-
-
-        private async void TryGetMrl(string mediaLink, CancellationToken cancellationToken)
-        {
-            logger.Debug("TryGetMrl(...) " + mediaLink);
-
-            if (closing)
-            {
-                return;
-            }
-
-            if (!string.IsNullOrEmpty(mediaLink))
-            {
-                try
-                {
-                    var mrl = await GetMrlAsync(mediaLink, cancellationToken);
-
-                    EnqueueCommand("PlayMrl", new[] { mrl, mediaLink });
-                }
-                catch (Exception ex)
-                {
-                    if(ex is OperationCanceledException)
-                    {
-                        logger.Warn(ex);
-                    }
-                    else
-                    {
-                        logger.Error(ex);
-                    }
-                   
-                    EnqueueCommand("Stopped");
-
-                    //Debug.Fail(ex.Message);
-                    //Debug.WriteLine(ex);
-                }
-            }
-
-        }
-
-        private async Task<string> GetMrlAsync(string mediaLink, CancellationToken cancellationToken)
-        {
-            var tcs = new TaskCompletionSource<string>();
-            cancellationToken.Register(() =>
-            {
-                tcs.TrySetCanceled();
-            });
-
-            var getMrlTask = GetMrlAsync(mediaLink);
-            var completedTask = await Task.WhenAny(getMrlTask, tcs.Task);
-            if (completedTask == getMrlTask)
-            {
-                var result = await getMrlTask;
-                tcs.TrySetResult(result);
-            }
-            return await tcs.Task;
-        }
-
-        private async Task<string> GetMrlAsync(string mediaLink)
-        {
-            logger.Debug("GetMrlAsync(...) " + mediaLink);
-
-            string mri = "";
-            string videoId = "";
-            if (YoutubeApi.YoutubeClient.TryParseVideoId(mediaLink, out videoId))
-            {
-                using (var youtube = new YoutubeApi.YoutubeClient())
-                {
-                    YoutubeApi.MediaStreamInfo streamInfo = null;
-                    var streamInfoSet = await youtube.GetVideoMediaStreamInfosAsync(videoId);
-                    if (streamInfoSet != null)
-                    {
-                        if (streamInfoSet.Muxed?.Count > 0)
-                        {
-                            streamInfo = streamInfoSet.Muxed.OrderByDescending(s => s.VideoQuality).FirstOrDefault();
-                        }
-                        else if (streamInfoSet.Video?.Count > 0)
-                        {
-                            streamInfo = streamInfoSet.Video.OrderByDescending(s => s.VideoQuality).FirstOrDefault();
-                        }
-                        else if (streamInfoSet.Audio?.Count > 0)
-                        {
-                            streamInfo = streamInfoSet.Audio.OrderByDescending(s => s.Bitrate).FirstOrDefault();
-                        }
-                    }
-
-                    if (streamInfo != null)
-                    {
-                        mri = streamInfo.Url;
-                    }
-                    else
-                    {
-                        throw new Exception("Unsupported youtube link!");
-                    }
-                }
-            }
-            else
-            {
-                Uri u = new Uri(mediaLink);
-                mri = u.AbsoluteUri;
-            }
-            return mri;
-        }
-
-
-
 
         private bool ValidateMedia(VlcMedia media)
         {
@@ -1036,7 +942,7 @@ namespace VlcPlayer
         private void MediaPlayer_EncounteredError(object sender, VlcMediaPlayerEncounteredErrorEventArgs e)
         {
             logger.Trace("MediaPlayer_EncounteredError(...) ");
-           
+
             EnqueueCommand("EncounteredError");
         }
 
@@ -1212,6 +1118,9 @@ namespace VlcPlayer
             }
 
             videoProvider?.Dispose();
+            mrlProvider?.Dispose();
+
+            // cancellationTokenSource?.Dispose();
         }
 
         internal void ProcessIncomingCommand(string command, object[] args)
@@ -1411,11 +1320,11 @@ namespace VlcPlayer
             communicationClient?.OnPostMessage(command, args);
         }
 
-        private void SetupVideo(string appId, IntPtr handle, int width, int height, PixelFormat fmt, int pitches)
+        private void SetupVideo( IntPtr handle, int width, int height, PixelFormat fmt, int pitches, int offset)
         {
             this.dispatcher.Invoke(() =>
             {
-                Session.VideoSource = Imaging.CreateBitmapSourceFromMemorySection(handle, width, height, fmt, pitches, 0);
+                Session.VideoSource = Imaging.CreateBitmapSourceFromMemorySection(handle, width, height, fmt, pitches, offset);
 
             });
 
@@ -1425,7 +1334,7 @@ namespace VlcPlayer
                 System.Drawing.Imaging.PixelFormat.Format32bppArgb :
                 System.Drawing.Imaging.PixelFormat.Format32bppRgb;
 
-            InvokeEvent("VideoFormat", new object[] { appId, width, height, (int)_fmt, pitches });
+            InvokeEventAsync("VideoFormat", new object[] { AppId, width, height, (int)_fmt, pitches });
         }
 
 
@@ -1441,7 +1350,7 @@ namespace VlcPlayer
 
         private void CleanupVideo()
         {
-            InvokeEvent("CleanupVideo");
+            InvokeEventAsync("CleanupVideo");
             Session.VideoSource = null;
         }
 
@@ -1471,6 +1380,8 @@ namespace VlcPlayer
             }
         }
 
+        public string AppId { get; private set; }
+
         class VideoProvider : IDisposable
         {
 
@@ -1488,20 +1399,39 @@ namespace VlcPlayer
                 this.playback = playback;
             }
 
+           // private string appId = Guid.NewGuid().ToString("N");
             public void Setup()
             {
                 logger.Debug("VlcVideoProvider::Setup(...)");
 
+  
                 var player = playback.mediaPlayer;
                 if (player != null)
                 {
-                    player.SetVideoFormatCallbacks(this.VideoFormat, this.Cleanup);
-                    player.SetVideoCallbacks(LockVideo, null, Display, IntPtr.Zero);
+                    var handle =(IntPtr)Program.CommandLineOptions.WindowHandle;
+                    if (handle != IntPtr.Zero)
+                    {
+                        player.VideoHostControlHandle = handle;
+
+
+                        logger.Info("player.VideoHostControlHandle " + player.VideoHostControlHandle);
+                    }
+                    else
+                    {
+                        playback.AppId = Guid.NewGuid().ToString("N");
+
+                        this.memoryMappedFile = MemoryMappedFile.CreateNew(playback.AppId, 50 * 1024 * 1024);
+                        globalSyncEvent = CreateEventWaitHandle(playback.AppId + "_event");
+
+                       // globalSyncEvent = EventWaitHandle.OpenExisting(Program.CommandLineOptions.SyncEventId);
+
+                        player.SetVideoFormatCallbacks(this.VideoFormat, this.Cleanup);
+                        player.SetVideoCallbacks(LockVideo, null, Display, IntPtr.Zero);
+                    }
                 }
-                else
-                {
-                    //TODO
-                }
+
+
+
             }
 
 
@@ -1516,38 +1446,61 @@ namespace VlcPlayer
             /// <param name="pitches">The buffer width</param>
             /// <param name="lines">The buffer height</param>
             /// <returns>The number of buffers allocated</returns>
-            private uint VideoFormat(out IntPtr userdata, IntPtr chroma, ref uint width, ref uint height, ref uint pitches, ref uint lines)
+            private unsafe uint VideoFormat(out IntPtr userdata, IntPtr chroma, ref uint width, ref uint height, ref uint pitches, ref uint lines)
             {
-                var appId = Guid.NewGuid().ToString("N");
 
-                logger.Debug("VlcVideoProvider::VideoFormat(...) " + appId);
+              
+                logger.Debug("VlcVideoProvider::VideoFormat(...) " + playback.AppId + " chroma " + chroma + " width " + width + " height " + height + " pitches " + pitches + " lines " + lines);
 
                 PixelFormat pixelFormat = isAlphaChannelEnabled ? PixelFormats.Bgra32 : PixelFormats.Bgr32;
 
+                // FourCCConverter.ToFourCC("BGRA", chroma);
                 FourCCConverter.ToFourCC("RV32", chroma);
 
                 pitches = this.GetAlignedDimension((uint)(width * pixelFormat.BitsPerPixel) / 8, 32);
                 lines = this.GetAlignedDimension(height, 32);
-                var size = pitches * lines;
 
+                //var size = pitches * lines;
 
-                logger.Debug("MemoryMappedFile.CreateNew(...) " + appId + " " + size);
-                this.memoryMappedFile = MemoryMappedFile.CreateNew(appId, size);
-                var handle = this.memoryMappedFile.SafeMemoryMappedFileHandle.DangerousGetHandle();
+                var args = new int[] { (int)width, (int)height, isAlphaChannelEnabled ? 1 : 0, (int)pitches };
+                int headerSize =args.Length * sizeof(int);
+                long dataSize = pitches * lines;
+                var size = headerSize + dataSize;
+                long offset = 0;
 
                 this.memoryMappedView = this.memoryMappedFile.CreateViewAccessor();
-                var viewHandle = this.memoryMappedView.SafeMemoryMappedViewHandle.DangerousGetHandle();
+                if (memoryMappedView.Capacity > size)
+                {
+                    //TODO:
 
-                userdata = viewHandle;
+                }
+                memoryMappedView.WriteArray<int>(offset, args, 0, args.Length);
+                offset += headerSize;
 
-                globalSyncEvent = CreateEventWaitHandle(appId + "_event");
+                logger.Debug("MemoryMappedFile.CreateNew(...) " + playback.AppId + " " + size);
+                IntPtr ptr = memoryMappedView.SafeMemoryMappedViewHandle.DangerousGetHandle();
 
-                playback.SetupVideo(appId, handle, (int)width, (int)height, pixelFormat, (int)pitches);
+                userdata = IntPtr.Add(ptr, (int)offset);
 
+
+                //byte* ptr = (byte*)0;
+                //this.memoryMappedView.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
+                //userdata = IntPtr.Add(new IntPtr(ptr), (int)offset);
+
+                // this.memoryMappedView = this.memoryMappedFile.CreateViewAccessor();
+                //userdata = this.memoryMappedView.SafeMemoryMappedViewHandle.DangerousGetHandle();
+
+                //userdata = _ptr;
+
+
+                //var handle = this.memoryMappedFile.SafeMemoryMappedFileHandle.DangerousGetHandle();
+
+                //globalSyncEvent = CreateEventWaitHandle(appId + "_event");
+
+                //  playback.SetupVideo(handle, (int)width, (int)height, pixelFormat, (int)pitches, (int)offset);
 
                 return 1;
             }
-
 
             /// <summary>
             /// Called by Vlc when it requires a cleanup
@@ -1577,6 +1530,7 @@ namespace VlcPlayer
             {
                 Marshal.WriteIntPtr(planes, userdata);
                 return userdata;
+
             }
 
             /// <summary>
@@ -1604,11 +1558,12 @@ namespace VlcPlayer
 
                 this.memoryMappedView?.Dispose();
                 this.memoryMappedView = null;
-                this.memoryMappedFile?.Dispose();
-                this.memoryMappedFile = null;
 
-                this.globalSyncEvent?.Dispose();
-                this.globalSyncEvent = null;
+                //this.memoryMappedFile?.Dispose();
+                //this.memoryMappedFile = null;
+
+                //this.globalSyncEvent?.Dispose();
+                //this.globalSyncEvent = null;
 
             }
 
@@ -1616,6 +1571,7 @@ namespace VlcPlayer
             private EventWaitHandle CreateEventWaitHandle(string eventId)
             {
                 logger.Debug("CreateEventWaitHandle(...) " + eventId);
+
                 EventWaitHandle handle = null;
 
                 var users = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
@@ -1658,6 +1614,9 @@ namespace VlcPlayer
 
                     RemoveVideo();
 
+                    this.memoryMappedFile?.Dispose();
+                    this.memoryMappedFile = null;
+
                     globalSyncEvent?.Dispose();
 
                     // this.dispatcher.BeginInvoke((Action)this.RemoveVideo);
@@ -1681,6 +1640,135 @@ namespace VlcPlayer
             #endregion
 
         }
+
+
+        class MrlProvider
+        {
+            private readonly PlaybackHost playback = null;
+            internal MrlProvider(PlaybackHost host)
+            {
+                this.playback = host;
+            }
+
+            private CancellationTokenSource cancellationTokenSource = null;
+
+            internal async void FetchMrl(string mediaLink)
+            {
+                logger.Debug("FetchMrl(...) " + mediaLink);
+
+                if (playback.closing)
+                {
+                    return;
+                }
+
+                if (!string.IsNullOrEmpty(mediaLink))
+                {
+                    string mrl = "";
+                    try
+                    {
+                        cancellationTokenSource = new CancellationTokenSource();
+                        mrl = await GetMrlAsync(mediaLink, cancellationTokenSource.Token);
+
+                        playback.EnqueueCommand("PlayMrl", new[] { mrl, mediaLink });
+                    }
+                    catch (Exception ex)
+                    {
+                        if (ex is OperationCanceledException)
+                        {
+                            logger.Warn(ex);
+                        }
+                        else
+                        {
+                            logger.Error(ex);
+                        }
+
+                        playback.EnqueueCommand("Stopped");
+                    }
+                    finally
+                    {
+                        cancellationTokenSource?.Dispose();
+                        cancellationTokenSource = null;
+                    }
+                }
+            }
+
+            private async Task<string> GetMrlAsync(string mediaLink, CancellationToken cancellationToken)
+            {
+                var tcs = new TaskCompletionSource<string>();
+                cancellationToken.Register(() =>
+                {
+                    tcs.TrySetCanceled();
+                });
+
+                var getMrlTask = GetMrlAsync(mediaLink);
+                var completedTask = await Task.WhenAny(getMrlTask, tcs.Task);
+                if (completedTask == getMrlTask)
+                {
+                    var result = await getMrlTask;
+                    tcs.TrySetResult(result);
+                }
+                return await tcs.Task;
+            }
+
+            private async Task<string> GetMrlAsync(string mediaLink)
+            {
+                logger.Debug("GetMrlAsync(...) " + mediaLink);
+
+                string mri = "";
+                string videoId = "";
+                if (YoutubeApi.YoutubeClient.TryParseVideoId(mediaLink, out videoId))
+                {
+                    using (var youtube = new YoutubeApi.YoutubeClient())
+                    {
+                        YoutubeApi.MediaStreamInfo streamInfo = null;
+                        var streamInfoSet = await youtube.GetVideoMediaStreamInfosAsync(videoId);
+                        if (streamInfoSet != null)
+                        {
+                            if (streamInfoSet.Muxed?.Count > 0)
+                            {
+                                streamInfo = streamInfoSet.Muxed.OrderByDescending(s => s.VideoQuality).FirstOrDefault();
+                            }
+                            else if (streamInfoSet.Video?.Count > 0)
+                            {
+                                streamInfo = streamInfoSet.Video.OrderByDescending(s => s.VideoQuality).FirstOrDefault();
+                            }
+                            else if (streamInfoSet.Audio?.Count > 0)
+                            {
+                                streamInfo = streamInfoSet.Audio.OrderByDescending(s => s.Bitrate).FirstOrDefault();
+                            }
+                        }
+
+                        if (streamInfo != null)
+                        {
+                            mri = streamInfo.Url;
+                        }
+                        else
+                        {
+                            throw new Exception("Unsupported youtube link!");
+                        }
+                    }
+                }
+                else
+                {
+                    Uri u = new Uri(mediaLink);
+
+                    mri = u.AbsoluteUri;
+                }
+                return mri;
+            }
+
+            internal void Reset()
+            {
+                cancellationTokenSource?.Cancel();
+            }
+
+            internal void Dispose()
+            {
+                cancellationTokenSource?.Dispose();
+                cancellationTokenSource = null;
+            }
+        }
+
 
         public event PropertyChangedEventHandler PropertyChanged;
         private void OnPropertyChanged(string propertyName)

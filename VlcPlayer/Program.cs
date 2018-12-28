@@ -212,6 +212,9 @@ namespace VlcPlayer
 
         [Option("vlcopts")]
         public string VlcOptions { get; set; }
+
+        [Option("hwnd")]
+        public int WindowHandle { get; set; }
     }
 }
 

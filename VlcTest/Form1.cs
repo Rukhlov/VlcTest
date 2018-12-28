@@ -154,15 +154,15 @@ namespace VlcTest
         }
 
         private Form2 videoForm = null;
-        public void ShowVideoForm(object []args)
+        public void ShowVideoForm()
         {
             this.Invoke((Action)(() =>
             {
                 //CreateVideoForm();
 
                 videoForm.Visible = true;
-
-                videoForm.StartRender(args);
+                
+                videoForm.StartRender(this.appId);
 
             }));
 
@@ -286,7 +286,7 @@ namespace VlcTest
 
             return handle;
         }
-
+        private string appId = "";
         private void StartPlayerProc(string fileName)
         {
             try
@@ -300,7 +300,7 @@ namespace VlcTest
                 //}
 
                 //globalSyncEvent = CreateWaitHandle(syncEventId);
-
+                
                 TryToOpen();
 
                 if (!this.IsOpened)
@@ -312,13 +312,16 @@ namespace VlcTest
                 IsStopped = true;
 
                 CloseClientProccess();
+
+                
                 var _vlcopts = new string[] {"--extraintf=logger", "--verbose=0" , "--network-caching=1000" };
                 string vlcopts = string.Join(" ", _vlcopts);
                 var args = new string [] { "--channel=\"" + address + "\"",
                                            "--media=\"" + fileName + "\"",
                                            "--parentid=\"" + CurrentProccess.Id + "\"",
-                                           "--evendid=\"" + syncEventId + "\"",
+                                           //"--eventid=\"" + syncEventId + "\"",
                                            "--vlcopts=\"" + vlcopts + "\"",
+                                          // "--hwnd=\"" + videoForm.Handle + "\""
                                          };
 
                 ProcessStartInfo startInfo = new ProcessStartInfo
@@ -632,6 +635,9 @@ namespace VlcTest
                     }
                     else
                     {
+                        var appId = args?[0]?.ToString();
+                        owner.appId = appId;
+
                         //throw new Exception("CONNECTION_ERROR!");
                         //Thread.Sleep(15000);
 
@@ -729,7 +735,7 @@ namespace VlcTest
 
             }
 
-           
+            private string applicationId = "";
             int count = 0;
             private void ProcessCommand(string command, object[] args)
             {
@@ -752,6 +758,8 @@ namespace VlcTest
                         count++;
                         owner.IsPaused = false;
                         owner.IsStopped = false;
+
+                        owner.ShowVideoForm();
                         owner.UpdateUi();
 
                         //owner.Invoke(new Action(() =>
@@ -766,13 +774,20 @@ namespace VlcTest
                     else if(command == "VideoFormat")
                     {
 
-                        owner.ShowVideoForm(args);//videoControl?.Open(args);
+                        //applicationId = args?[0]?.ToString();
+
+                        //owner.videoForm.videoControl1.AppEventId = args?[0]?.ToString();
+                        Debug.WriteLine(">>>>>>>>>>>>> applicationId " + applicationId);
+
+                        //owner.ShowVideoForm(applicationId);
+                        //owner.ShowVideoForm(args);//videoControl?.Open(args);
+
 
                     }
                     else if (command == "CleanupVideo")
                     {
 
-                        owner.videoForm.StopRender();
+                        //owner.videoForm.StopRender();
 
                         //owner.(args);//videoControl?.Open(args);
 

@@ -97,7 +97,9 @@ namespace VlcPlayer
             try
             {
                 string name = Id.ToString("N");
-                bool connected = communicationChannel.Connect(name, null);
+                var appId = playback.AppId;
+
+                bool connected = communicationChannel.Connect(name, new []{ appId });
 
                 if (!connected)
                 {

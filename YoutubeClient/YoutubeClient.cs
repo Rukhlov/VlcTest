@@ -613,7 +613,7 @@ namespace YoutubeApi
 
             // Get parser
             var parser = await GetPlayerResponseParserAsync(videoId, true).ConfigureAwait(false);
-
+            //Thread.Sleep(20000);
             // Prepare stream info maps
             var muxedStreamInfoMap = new Dictionary<int, MuxedStreamInfo>();
             var audioStreamInfoMap = new Dictionary<int, AudioStreamInfo>();
