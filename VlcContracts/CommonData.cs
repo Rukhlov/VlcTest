@@ -65,6 +65,12 @@ namespace VlcContracts
         public static extern bool MoveWindow(IntPtr hwnd, int x, int y, int cx, int cy, bool repaint);
 
 
+
+
+        [DllImport("kernel32.dll")]
+        public static extern void ZeroMemory(IntPtr dst, ulong length);
+
+
     }
 
     public class YoutubeUrlResolver

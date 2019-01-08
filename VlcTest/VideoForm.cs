@@ -11,22 +11,17 @@ using System.Windows.Forms;
 
 namespace VlcTest
 {
-    public partial class Form2 : Form
+    public partial class VideoForm : Form
     {
-        public Form2()
+        public VideoForm()
         {
             InitializeComponent();
         }
 
-        public void StartRender(string appId)
+        internal void InitVideoControl(VideoControl vc)
         {
-
-            videoControl1?.Start(appId);
+            this.elementHost1.Child = vc;
         }
 
-        public void StopRender()
-        {
-            videoControl1?.Stop();
-        }
     }
 }

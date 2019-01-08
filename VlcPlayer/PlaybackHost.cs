@@ -27,8 +27,7 @@ using System.Windows.Threading;
 using Vlc.DotNet.Core;
 using Vlc.DotNet.Core.Interops;
 using Vlc.DotNet.Core.Interops.Signatures;
-
-
+using VlcContracts;
 
 namespace VlcPlayer
 {
@@ -226,7 +225,13 @@ namespace VlcPlayer
 
             if (!string.IsNullOrEmpty(Session.RemoteAddr))
             {
+
                 communicationClient.Setup(Session.RemoteAddr);
+
+                var eventId = videoProvider.eventId;
+                var memoId = videoProvider.memoryId;
+
+                communicationClient.Connect(new[] { eventId, memoId });
             }
         }
 
@@ -459,6 +464,7 @@ namespace VlcPlayer
             {
                 return;
             }
+
             if (Session.PlaybackState == PlaybackState.Playing ||
                 Session.PlaybackState == PlaybackState.Paused)
             {
@@ -511,7 +517,7 @@ namespace VlcPlayer
 
         private void ProcessPlaybackCommand(InternalCommand command)
         {
-            logger.Debug("ProcessInternalCommand(...)");
+           // logger.Debug("ProcessInternalCommand(...)");
 
             if (closing)
             {
@@ -548,7 +554,8 @@ namespace VlcPlayer
                     break;
                 case "Opening":
                     {
-                        ResetSession();
+                        //ResetSession();
+                        openingTime = 0;
 
                         Session.PlaybackState = PlaybackState.Opening;
                         Session.PlaybackStats = new PlaybackStatistics();
@@ -601,6 +608,7 @@ namespace VlcPlayer
                     break;
                 case "Stop":
                     {
+                        commandQueue.Clear();
                         DoStop();
                     }
                     break;
@@ -633,11 +641,14 @@ namespace VlcPlayer
                             if (loopPlayback)
                             {
                                 var media = mediaPlayer?.GetMedia();
-                                if (ValidateMedia(media))
+                                if (media != null && media.State == MediaStates.Ended)
                                 {
-                                    EnqueueCommand("Play");
-                                    InvokeEventAsync("Restarting");
-                                    break;
+                                    if (ValidateMedia(media))
+                                    {
+                                        EnqueueCommand("Play");
+                                        InvokeEventAsync("Restarting");
+                                        break;
+                                    }
                                 }
                             }
                         }
@@ -941,14 +952,14 @@ namespace VlcPlayer
 
         private void MediaPlayer_EncounteredError(object sender, VlcMediaPlayerEncounteredErrorEventArgs e)
         {
-            logger.Trace("MediaPlayer_EncounteredError(...) ");
+            logger.Debug(">>MediaPlayer_EncounteredError(...) ");
 
             EnqueueCommand("EncounteredError");
         }
 
         private void MediaPlayer_Opening(object sender, VlcMediaPlayerOpeningEventArgs e)
         {
-            logger.Trace("MediaPlayer_Opening(...) ");
+            logger.Debug(">>MediaPlayer_Opening(...) ");
 
             EnqueueCommand("Opening");
 
@@ -959,18 +970,18 @@ namespace VlcPlayer
 
         private void MediaPlayer_VideoOutChanged(object sender, VlcMediaPlayerVideoOutChangedEventArgs e)
         {
-            logger.Trace("MediaPlayer_VideoOutChanged(...) " + e.NewCount);
+            logger.Debug(">>MediaPlayer_VideoOutChanged(...) " + e.NewCount);
         }
 
         private void MediaPlayer_AudioDevice(object sender, VlcMediaPlayerAudioDeviceEventArgs e)
         {
-            logger.Trace("MediaPlayer_AudioDevice(...) " + e.Device);
+            logger.Debug(">>MediaPlayer_AudioDevice(...) " + e.Device);
 
         }
 
         private void MediaPlayer_Playing(object sender, VlcMediaPlayerPlayingEventArgs e)
         {
-            logger.Trace("Playing(...)");
+            logger.Debug(">>MediaPlayer_Playing(...)");
 
             EnqueueCommand("Playing");
 
@@ -978,28 +989,28 @@ namespace VlcPlayer
 
         private void MediaPlayer_Paused(object sender, VlcMediaPlayerPausedEventArgs e)
         {
-            logger.Debug("Paused(...)");
+            logger.Debug(">>MediaPlayer_Paused(...)");
 
             EnqueueCommand("Paused");
         }
 
         private void MediaPlayer_EndReached(object sender, VlcMediaPlayerEndReachedEventArgs e)
         {
-            logger.Debug("Player_EndReached(...)");
+            logger.Debug(">>Player_EndReached(...)");
 
             //EnqueueCommand("EndReached");
         }
 
         private void MediaPlayer_Stopped(object sender, VlcMediaPlayerStoppedEventArgs e)
         {
-            logger.Debug("MediaPlayer_Stopped(...) " + mediaPlayer.State);
+            logger.Debug(">>MediaPlayer_Stopped(...) " + mediaPlayer.State);
 
             EnqueueCommand("Stopped");
         }
 
         private void Player_MediaChanged(object sender, VlcMediaPlayerMediaChangedEventArgs e)
         {
-            //logger.Debug("Player_MediaChanged(...)");
+            logger.Debug(">>Player_MediaChanged(...)");
 
             //EnqueueCommand("MediaChanged", new object[] { });
         }
@@ -1008,7 +1019,7 @@ namespace VlcPlayer
 
         private void MediaPlayer_PositionChanged(object sender, VlcMediaPlayerPositionChangedEventArgs e)
         {
-            logger.Debug("MediaPlayer_PositionChanged(...) " + e.NewPosition);
+            logger.Debug(">>MediaPlayer_PositionChanged(...) " + e.NewPosition);
             //EnqueueCommand("PositionChanged", new object[] { e.NewPosition });
         }
 
@@ -1019,21 +1030,21 @@ namespace VlcPlayer
 
         private void MediaPlayer_LengthChanged(object sender, VlcMediaPlayerLengthChangedEventArgs e)
         {
-            logger.Trace("MediaPlayer_LengthChanged(...)");
+            logger.Debug(">>MediaPlayer_LengthChanged(...)");
             EnqueueCommand("LengthChanged", new object[] { e.NewLength });
 
         }
 
         private void MediaPlayer_Muted(object sender, EventArgs e)
         {
-            logger.Debug("MediaPlayer_Muted(...)");
+            logger.Debug(">>MediaPlayer_Muted(...)");
 
             EnqueueCommand("Muted");
         }
 
         private void MediaPlayer_Unmuted(object sender, EventArgs e)
         {
-            logger.Debug("MediaPlayer_Unmuted(...)");
+            logger.Debug(">>MediaPlayer_Unmuted(...)");
 
             EnqueueCommand("Unmuted");
 
@@ -1041,7 +1052,7 @@ namespace VlcPlayer
 
         private void MediaPlayer_AudioVolume(object sender, VlcMediaPlayerAudioVolumeEventArgs e)
         {
-            logger.Debug("MediaPlayer_AudioVolume(...) ");
+            logger.Debug(">>MediaPlayer_AudioVolume(...) ");
 
             EnqueueCommand("AudioVolume");
 
@@ -1309,9 +1320,10 @@ namespace VlcPlayer
             }
         }
 
-        private Task InvokeEventAsync(string command, object[] args = null)
+        private void InvokeEventAsync(string command, object[] args = null)
         {
-            return Task.Run(() => InvokeEvent(command, args));
+            InvokeEvent(command, args);
+            //return Task.Run(() => InvokeEvent(command, args));
         }
 
         private void InvokeEvent(string command, object[] args = null)
@@ -1330,11 +1342,11 @@ namespace VlcPlayer
 
             interopBitmap = Session.VideoSource as InteropBitmap;
 
-            var _fmt = (fmt == PixelFormats.Bgra32) ?
-                System.Drawing.Imaging.PixelFormat.Format32bppArgb :
-                System.Drawing.Imaging.PixelFormat.Format32bppRgb;
+            //var _fmt = (fmt == PixelFormats.Bgra32) ?
+            //    System.Drawing.Imaging.PixelFormat.Format32bppArgb :
+            //    System.Drawing.Imaging.PixelFormat.Format32bppRgb;
 
-            InvokeEventAsync("VideoFormat", new object[] { AppId, width, height, (int)_fmt, pitches });
+            //InvokeEventAsync("VideoFormat", new object[] { AppId, width, height, (int)_fmt, pitches });
         }
 
 
@@ -1344,7 +1356,6 @@ namespace VlcPlayer
                 (Action)(() =>
                 {
                     interopBitmap?.Invalidate();
-
                 }));
         }
 
@@ -1380,8 +1391,6 @@ namespace VlcPlayer
             }
         }
 
-        public string AppId { get; private set; }
-
         class VideoProvider : IDisposable
         {
 
@@ -1390,7 +1399,7 @@ namespace VlcPlayer
             private MemoryMappedFile memoryMappedFile;
             private MemoryMappedViewAccessor memoryMappedView;
 
-            private EventWaitHandle globalSyncEvent = null;
+            private EventWaitHandle eventWaitHandle = null;
 
             private bool isAlphaChannelEnabled = true;
 
@@ -1399,7 +1408,9 @@ namespace VlcPlayer
                 this.playback = playback;
             }
 
-           // private string appId = Guid.NewGuid().ToString("N");
+            internal string eventId = "";
+            internal string memoryId = "";
+
             public void Setup()
             {
                 logger.Debug("VlcVideoProvider::Setup(...)");
@@ -1418,12 +1429,11 @@ namespace VlcPlayer
                     }
                     else
                     {
-                        playback.AppId = Guid.NewGuid().ToString("N");
-
-                        this.memoryMappedFile = MemoryMappedFile.CreateNew(playback.AppId, 50 * 1024 * 1024);
-                        globalSyncEvent = CreateEventWaitHandle(playback.AppId + "_event");
-
-                       // globalSyncEvent = EventWaitHandle.OpenExisting(Program.CommandLineOptions.SyncEventId);
+                        memoryId = Guid.NewGuid().ToString("N");
+                        this.memoryMappedFile = MemoryMappedFile.CreateNew(memoryId, 30 *1024* 1024, MemoryMappedFileAccess.ReadWrite);
+                        
+                        eventId = Guid.NewGuid().ToString("N");
+                        this.eventWaitHandle = CreateEventWaitHandle(eventId);
 
                         player.SetVideoFormatCallbacks(this.VideoFormat, this.Cleanup);
                         player.SetVideoCallbacks(LockVideo, null, Display, IntPtr.Zero);
@@ -1447,10 +1457,8 @@ namespace VlcPlayer
             /// <param name="lines">The buffer height</param>
             /// <returns>The number of buffers allocated</returns>
             private unsafe uint VideoFormat(out IntPtr userdata, IntPtr chroma, ref uint width, ref uint height, ref uint pitches, ref uint lines)
-            {
-
-              
-                logger.Debug("VlcVideoProvider::VideoFormat(...) " + playback.AppId + " chroma " + chroma + " width " + width + " height " + height + " pitches " + pitches + " lines " + lines);
+            {  
+                logger.Debug("VlcVideoProvider::VideoFormat(...) " + eventId + " chroma " + chroma + " width " + width + " height " + height + " pitches " + pitches + " lines " + lines);
 
                 PixelFormat pixelFormat = isAlphaChannelEnabled ? PixelFormats.Bgra32 : PixelFormats.Bgr32;
 
@@ -1462,43 +1470,43 @@ namespace VlcPlayer
 
                 //var size = pitches * lines;
 
-                var args = new int[] { (int)width, (int)height, isAlphaChannelEnabled ? 1 : 0, (int)pitches };
-                int headerSize =args.Length * sizeof(int);
+              
+                int headerSize = 1024;//args.Length * sizeof(int);
                 long dataSize = pitches * lines;
                 var size = headerSize + dataSize;
-                long offset = 0;
+                int offset = 0;
 
                 this.memoryMappedView = this.memoryMappedFile.CreateViewAccessor();
-                if (memoryMappedView.Capacity > size)
+                if (memoryMappedView.Capacity < size)
                 {
-                    //TODO:
+                    width = 1280;
+                    height = 720;
 
+                    pitches = this.GetAlignedDimension((uint)(width * pixelFormat.BitsPerPixel) / 8, 32);
+                    lines = this.GetAlignedDimension(height, 32);
+                    dataSize = pitches * lines;
+                    size = headerSize + dataSize;
+
+                    //this.memoryMappedView?.Dispose();
+                    //this.memoryMappedFile?.Dispose();
+
+                    //this.memoryMappedFile = MemoryMappedFile.CreateNew(playback.AppId, size);
+                    //this.memoryMappedView = this.memoryMappedFile.CreateViewAccessor();
                 }
-                memoryMappedView.WriteArray<int>(offset, args, 0, args.Length);
+
+                var args = new int[] { (int)width, (int)height, isAlphaChannelEnabled ? 1 : 0, (int)pitches };
+                memoryMappedView.WriteArray(offset, args, 0, args.Length);
                 offset += headerSize;
-
-                logger.Debug("MemoryMappedFile.CreateNew(...) " + playback.AppId + " " + size);
                 IntPtr ptr = memoryMappedView.SafeMemoryMappedViewHandle.DangerousGetHandle();
-
-                userdata = IntPtr.Add(ptr, (int)offset);
-
+                userdata = IntPtr.Add(ptr, offset);
 
                 //byte* ptr = (byte*)0;
                 //this.memoryMappedView.SafeMemoryMappedViewHandle.AcquirePointer(ref ptr);
                 //userdata = IntPtr.Add(new IntPtr(ptr), (int)offset);
 
-                // this.memoryMappedView = this.memoryMappedFile.CreateViewAccessor();
-                //userdata = this.memoryMappedView.SafeMemoryMappedViewHandle.DangerousGetHandle();
-
-                //userdata = _ptr;
-
-
-                //var handle = this.memoryMappedFile.SafeMemoryMappedFileHandle.DangerousGetHandle();
-
-                //globalSyncEvent = CreateEventWaitHandle(appId + "_event");
-
-                //  playback.SetupVideo(handle, (int)width, (int)height, pixelFormat, (int)pitches, (int)offset);
-
+                var handle = this.memoryMappedFile.SafeMemoryMappedFileHandle.DangerousGetHandle();
+                playback.SetupVideo(handle, (int)width, (int)height, pixelFormat, (int)pitches, (int)offset);
+                initiated = true;
                 return 1;
             }
 
@@ -1510,14 +1518,22 @@ namespace VlcPlayer
             {
                 logger.Debug("VlcVideoProvider::CleanupVideo(...)");
 
-                playback.CleanupVideo();
+                var args = new int[] { 0, 0, 0, 0 };
+                memoryMappedView?.WriteArray(0, args, 0, args.Length);
 
-                // This callback may be called by Dispose in the Dispatcher thread, in which case it deadlocks if we call RemoveVideo again in the same thread.
+                //using (var handle = memoryMappedView.SafeMemoryMappedViewHandle)
+                //{
+                //    NativeMethods.ZeroMemory(handle.DangerousGetHandle(), handle.ByteLength);
+                //}
+
                 if (!disposedValue)
                 {
                     this.RemoveVideo();
-                    //this.dispatcher.Invoke((Action)this.RemoveVideo);
                 }
+
+                playback.CleanupVideo();
+                initiated = false;
+
             }
 
             /// <summary>
@@ -1533,6 +1549,7 @@ namespace VlcPlayer
 
             }
 
+            private bool initiated = false;
             /// <summary>
             /// Called by libvlc when the picture has to be displayed.
             /// </summary>
@@ -1540,7 +1557,13 @@ namespace VlcPlayer
             /// <param name="picture">The pointer returned by the <see cref="LockVideo"/> callback. This is not used.</param>
             private void Display(IntPtr userdata, IntPtr picture)
             {
-                globalSyncEvent?.Set();
+                if (initiated)
+                {
+                    initiated = false;
+                    playback.InvokeEventAsync("Initiated");
+                }
+
+                eventWaitHandle?.Set();
 
                 playback.DisplayVideo();
 
@@ -1617,7 +1640,7 @@ namespace VlcPlayer
                     this.memoryMappedFile?.Dispose();
                     this.memoryMappedFile = null;
 
-                    globalSyncEvent?.Dispose();
+                    eventWaitHandle?.Dispose();
 
                     // this.dispatcher.BeginInvoke((Action)this.RemoveVideo);
                 }

@@ -17,6 +17,7 @@ using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media;
+using System.Windows.Media.Effects;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
@@ -24,9 +25,6 @@ using System.Windows.Threading;
 
 namespace VlcTest
 {
-    /// <summary>
-    /// Логика взаимодействия для UserControl1.xaml
-    /// </summary>
     public partial class VideoControl : UserControl, INotifyPropertyChanged
     {
         public VideoControl()
@@ -34,10 +32,19 @@ namespace VlcTest
             InitializeComponent();
             this.DataContext = this;
 
-            this.Video.SetBinding(Image.SourceProperty, new Binding(nameof(VideoSource)));
+           // this.Video.SetBinding(Image.SourceProperty, new Binding(nameof(VideoSource)));
         }
 
-        private EventWaitHandle syncEvent = null;
+        private string appEventId = "";
+
+        private Task task = null;
+      
+        public volatile bool closing = false;
+        private volatile bool rendering = false;
+        private volatile bool playing = false;
+
+        private EventWaitHandle displayEvent = null;
+        private AutoResetEvent startupEvent = null;
 
         private InteropBitmap interopBitmap = null;
         private ImageSource videoSource = null;
@@ -57,182 +64,223 @@ namespace VlcTest
                 }
             }
         }
-        IntPtr _ptr = IntPtr.Zero;
 
-        public volatile string AppEventId = "";
-        public void Start(string appId)
+        private BlurEffect blurEffect = new BlurEffect { Radius = 0 };
+        public BlurEffect BlurEffect
         {
-
-            Task.Run(() =>
+            get
             {
+                return this.blurEffect;
+            }
 
-                syncEvent = EventWaitHandle.OpenExisting(appId + "_event");
-                syncEvent.WaitOne();
+            set
+            {
+                if (!Object.ReferenceEquals(this.blurEffect, value))
+                {
+                    this.blurEffect = value;
+                    this.OnPropertyChanged(nameof(BlurEffect));
+                }
+            }
+        }
 
+        public void Setup(string eventId, string memoryId)
+        {
+            Debug.WriteLine("VideoControl::Setup(...) " + eventId + " " + memoryId);
 
-                MemoryMappedFile mmf = null;
+            if(task != null)
+            {
+                if(task.Status == TaskStatus.Running)
+                {
+                    Debug.WriteLine("task.Status == TaskStatus.Running");
+
+                    this.Close();
+                }
+            }
+
+            closing = false;
+
+            task = Task.Run(() =>
+            {
                 try
                 {
-                    int offset = 0;
+                    Debug.WriteLine("Render task BEGIN");
 
-                    mmf = MemoryMappedFile.OpenExisting(appId);
+                    appEventId = eventId;
+                    displayEvent = EventWaitHandle.OpenExisting(eventId);
+                    startupEvent = new AutoResetEvent(false);
 
-                    var args = new int[4];
-                    int headerSize = args.Length * sizeof(int);
-
-                    using (var headerView = mmf.CreateViewAccessor(offset, headerSize))
+                    Debug.WriteLine("Render control loop started...");
+                    while (!closing)
                     {
-                        headerView.ReadArray<int>(offset, args, 0, args.Length);
+                        Debug.WriteLine("startupEvent.WaitOne()");
 
-                        var result = string.Join(";", args);
-                        System.Diagnostics.Debug.WriteLine(result);
-
-                    }
-
-                    offset += headerSize;
-
-                    var width = args[0];
-                    var height = args[1];
-                    var IsAlphaChannelEnabled = args[2];
-                    var pitch = args[3];
-
-                    var pixFmt = (IsAlphaChannelEnabled == 1) ? PixelFormats.Bgra32 : PixelFormats.Bgr32;
-
-                    this.Dispatcher.Invoke(() =>
-                    {
-                        using (var mmfHandle = mmf.SafeMemoryMappedFileHandle)
+                        if (!startupEvent.WaitOne(3000))
                         {
-                            var section = mmfHandle.DangerousGetHandle();
-                            interopBitmap = (InteropBitmap)Imaging.CreateBitmapSourceFromMemorySection(section, width, height, pixFmt, pitch, offset);
-                            this.VideoSource = interopBitmap;
-                        }
-
-                    });
-
-
-                    //var rights = EventWaitHandleRights.Synchronize | EventWaitHandleRights.Modify;
-
-
-                    rendering = true;
-                    while (rendering)
-                    {
-                        if (!syncEvent.WaitOne(5000))
-                        {
-                            //...
-                        }
-
-                        this.Dispatcher.BeginInvoke(DispatcherPriority.Render,
-                            (Action)(() =>
+                            if (!playing)
                             {
-                                interopBitmap?.Invalidate();
-                            }));
+                                continue;
+                            }
+                        }
+
+                        if (closing)
+                        {
+                            Debug.WriteLine("closing == false");
+                            break;
+                        }
 
 
+                        if (!SetupVideoSource(memoryId))
+                        {
+                            Debug.WriteLine("SetupVideoSource() == false continue;");
+                            Thread.Sleep(100);
+                            continue;
+                        }
+
+                        rendering = true;
+
+                        Debug.WriteLine("Render loop started...");
+                        while (rendering && !closing)
+                        {
+                            if (displayEvent.WaitOne(1000))
+                            {
+                                this.Dispatcher.BeginInvoke(DispatcherPriority.Render,
+                                    (Action)(() =>
+                                    {
+                                        interopBitmap?.Invalidate();
+                                    }));
+                            }
+                        }
+
+                        playing = false;
+
+                        Debug.WriteLine("Render loop stopped...");
                     }
+
+                    Debug.WriteLine("Render control loop stopped...");
+
+                }
+                catch (Exception ex)
+                {
+                    Debug.Fail(ex.Message);
+                    Debug.WriteLine(ex);
+
                 }
                 finally
                 {
-                    rendering = false;
 
-                    syncEvent?.Dispose();
-                    syncEvent = null;
+                    Debug.WriteLine("Render task END");
 
-                    mmf?.Dispose();
+                    startupEvent?.Dispose();
+                    startupEvent = null;
 
-                    // VideoSource = null;
+                    displayEvent?.Dispose();
+                    displayEvent = null;
+
+                    VideoSource = null;
+
                 }
-
             });
 
 
         }
 
 
-        public void _Start(object[] args)
+        private bool SetupVideoSource(string memoryId)
         {
-            if (args != null && args.Length == 5)
+            Debug.WriteLine("VideoControl::SetupVideoSource(...) " + memoryId);
+
+            bool res = false;
+            MemoryMappedFile mmf = null;
+            try
             {
-                var appId = args[0]?.ToString();
-                var width = (int)args[1];
-                var height = (int)args[2];
+                mmf = MemoryMappedFile.OpenExisting(memoryId);
 
-                //var IsAlphaChannelEnabled = (bool)args[3];
+                var args = new int[4];
+                int headerSize = 1024;//args.Length * sizeof(int);
 
-                var _fmt = (System.Drawing.Imaging.PixelFormat)args[3];
+                int offset = 0;
 
-                PixelFormat pixFmt = PixelFormats.Bgr32;
-                if (_fmt == System.Drawing.Imaging.PixelFormat.Format32bppArgb)
+                using (var header = mmf.CreateViewAccessor(offset, headerSize))
                 {
-                    pixFmt = PixelFormats.Bgra32;
+                    header.ReadArray<int>(offset, args, 0, args.Length);
+
+                    var result = string.Join(";", args);
+                    Debug.WriteLine(result);
+
                 }
 
-                var pitch = (int)args[4];
-                //var eventName = (string)args[5];
+                offset += headerSize;
 
-                Task.Run(() =>
+                var width = args[0];
+                var height = args[1];
+                var isAlphaChannelEnabled = args[2];
+                var pitch = args[3];
+
+                var pixFmt = (isAlphaChannelEnabled == 1) ? PixelFormats.Bgra32 : PixelFormats.Bgr32;
+
+                if (width > 0 && height > 0 && pitch > 0)
                 {
-                    MemoryMappedFile mmf = null;
-                    try
+                    this.Dispatcher.Invoke(() =>
                     {
-                        mmf = MemoryMappedFile.OpenExisting(appId);
-
-                        var handle = mmf.SafeMemoryMappedFileHandle.DangerousGetHandle();
-                        this.Dispatcher.Invoke(() =>
+                        using (var handle = mmf.SafeMemoryMappedFileHandle)
                         {
-                            interopBitmap = (InteropBitmap)Imaging.CreateBitmapSourceFromMemorySection(handle, width, height, pixFmt, pitch, 0);
+                            var section = handle.DangerousGetHandle();
+                            interopBitmap = (InteropBitmap)Imaging.CreateBitmapSourceFromMemorySection(section, width, height, pixFmt, pitch, offset);
 
                             this.VideoSource = interopBitmap;
-
-                        });
-
-                        var rights = EventWaitHandleRights.Synchronize | EventWaitHandleRights.Modify;
-                        syncEvent = EventWaitHandle.OpenExisting(appId + "_event");
-
-                        rendering = true;
-                        while (rendering)
-                        {
-                            if (!syncEvent.WaitOne(5000))
-                            {
-                                //...
-                            }
-
-                            this.Dispatcher.BeginInvoke(DispatcherPriority.Render,
-                                (Action)(() =>
-                                {
-                                    interopBitmap?.Invalidate();
-                                }));
-
-
+                            res = true;
                         }
-                    }
-                    finally
-                    {
-                        rendering = false;
-
-                        syncEvent?.Dispose();
-                        syncEvent = null;
-
-                        mmf?.Dispose();
-
-                        // VideoSource = null;
-                    }
-
-                });
-
+                    });
+                }
             }
+            finally
+            {
+                mmf?.Dispose();
+            }
+
+            return res;
         }
 
-        private volatile bool rendering = false;
+
+
+        public void Play()
+        {
+            Debug.WriteLine("VideoControl::Play()");
+            playing = true;
+            startupEvent?.Set();
+        }
+
         public void Stop()
         {
+            Debug.WriteLine("VideoControl::Stop()");
+            playing = false;
+
             rendering = false;
-            syncEvent?.Set();
+            displayEvent?.Set();
         }
 
         public void Clear()
         {
-            VideoSource = null;
+            Debug.WriteLine("VideoControl::Clear() " + appEventId);
+
+            this.VideoSource = null;
         }
+
+        public void Close()
+        {
+
+            Debug.WriteLine("VideoControl::Close() " + appEventId);
+            rendering = false;
+            closing = true;
+            playing = false;
+
+            VideoSource = null;
+            displayEvent?.Set();
+
+            startupEvent?.Set();
+
+        }
+
 
         public event PropertyChangedEventHandler PropertyChanged;
 
@@ -240,8 +288,6 @@ namespace VlcTest
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
-
-
 
     }
 

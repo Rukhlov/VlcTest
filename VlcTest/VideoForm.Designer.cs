@@ -1,6 +1,6 @@
 ﻿namespace VlcTest
 {
-    partial class Form2
+    partial class VideoForm
     {
         /// <summary>
         /// Required designer variable.
@@ -29,18 +29,18 @@
         private void InitializeComponent()
         {
             this.elementHost1 = new System.Windows.Forms.Integration.ElementHost();
-            this.videoControl1 = new VlcTest.VideoControl();
             this.SuspendLayout();
             // 
             // elementHost1
             // 
-            this.elementHost1.Location = new System.Drawing.Point(12, 12);
+            this.elementHost1.BackColor = System.Drawing.Color.Black;
+            this.elementHost1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.elementHost1.Location = new System.Drawing.Point(0, 0);
             this.elementHost1.Name = "elementHost1";
-            this.elementHost1.Size = new System.Drawing.Size(542, 343);
+            this.elementHost1.Size = new System.Drawing.Size(566, 367);
             this.elementHost1.TabIndex = 0;
             this.elementHost1.Text = "elementHost1";
-            this.elementHost1.Child = this.videoControl1;
-            this.elementHost1.Dock = System.Windows.Forms.DockStyle.Fill;
+            this.elementHost1.Child = null;
             // 
             // Form2
             // 
@@ -57,6 +57,5 @@
         #endregion
 
         private System.Windows.Forms.Integration.ElementHost elementHost1;
-        public VideoControl videoControl1;
     }
 }

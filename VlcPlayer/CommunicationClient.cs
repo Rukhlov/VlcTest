@@ -44,7 +44,7 @@ namespace VlcPlayer
 
         }
 
-        public void Setup(string addr)
+        public void Setup(string addr, object[] args = null)
         {
             try
             {
@@ -79,6 +79,7 @@ namespace VlcPlayer
 
                 channel.Open();
 
+                //Connect(args);
                 //throw new Exception("sdfsdfsdfsf");
 
             }
@@ -94,12 +95,17 @@ namespace VlcPlayer
         {
             logger.Debug("Channel openned...");
 
+           // Connect();
+
+        }
+
+        public void Connect(object[] args = null)
+        {
             try
             {
                 string name = Id.ToString("N");
-                var appId = playback.AppId;
 
-                bool connected = communicationChannel.Connect(name, new []{ appId });
+                bool connected = communicationChannel.Connect(name, args);
 
                 if (!connected)
                 {
@@ -114,7 +120,20 @@ namespace VlcPlayer
                 logger.Error(ex);
                 playback.Close();
             }
+        }
 
+
+        public void Disconnect()
+        {
+            try
+            {
+                communicationChannel.Disconnect();
+            }
+            catch (Exception ex)
+            {
+                logger.Error(ex);
+                playback.Close();
+            }
         }
 
         private void channel_Faulted(object sender, EventArgs e)

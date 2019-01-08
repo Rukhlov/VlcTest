@@ -1,0 +1,32 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<nlog xmlns="http://www.nlog-project.org/schemas/NLog.xsd"
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" internalLogFile="NlogInternal.txt" internalLogLevel="Error">
+
+  <variable name="CurrentDateTime" value = "${cached:cached=true:clearCache=None:inner=${date:format=yyyy-MM-dd HH-mm-ss.fff}}"/>
+
+  <variable name="LogDirectory" value="${basedir}/logs/${CurrentDateTime}"/>
+  
+  <targets>
+    
+    <target name="debugout" xsi:type="Debugger" />
+
+    <!--<target name="file" xsi:type="File" layout="${message}" fileName="${LogDirectory}/log.txt" />-->
+
+    
+    <target name="richtext" xsi:type="RichTextBox" controlName="loggerTextBox"  formName="mainForm" />
+    <!--<target name="textbox" xsi:type="RichTextBox" 
+            controlName="LoggerTextBox"
+            formName="MainForm" 
+            layout="${message} ${newline}"
+            autoScroll="true"
+            maxLines="1000">
+    </target>-->
+
+  </targets>
+
+  <rules>
+
+    <logger name="*" minlevel="Debug" writeTo="debugout,richtext" />
+
+  </rules>
+</nlog>

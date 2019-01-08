@@ -1,6 +1,6 @@
 ﻿namespace VlcTest
 {
-    partial class Form1
+    partial class MainForm
     {
         /// <summary>
         /// Обязательная переменная конструктора.
@@ -28,7 +28,6 @@
         /// </summary>
         private void InitializeComponent()
         {
-            this.textBox1 = new System.Windows.Forms.TextBox();
             this.buttonConnect = new System.Windows.Forms.Button();
             this.trackBarPosition = new System.Windows.Forms.TrackBar();
             this.button1 = new System.Windows.Forms.Button();
@@ -57,9 +56,9 @@
             this.checkBoxLoopPlayback = new System.Windows.Forms.CheckBox();
             this.button4 = new System.Windows.Forms.Button();
             this.button5 = new System.Windows.Forms.Button();
-            this.elementHost1 = new System.Windows.Forms.Integration.ElementHost();
-            this.videoControl = new VlcTest.VideoControl();
             this.button6 = new System.Windows.Forms.Button();
+            this.elementHost1 = new System.Windows.Forms.Integration.ElementHost();
+            this.videoControl1 = new VlcTest.VideoControl();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarPosition)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarVolume)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarBlur)).BeginInit();
@@ -71,18 +70,6 @@
             ((System.ComponentModel.ISupportInitialize)(this.trackBarSaturation)).BeginInit();
             this.SuspendLayout();
             // 
-            // textBox1
-            // 
-            this.textBox1.Anchor = ((System.Windows.Forms.AnchorStyles)((((System.Windows.Forms.AnchorStyles.Top | System.Windows.Forms.AnchorStyles.Bottom) 
-            | System.Windows.Forms.AnchorStyles.Left) 
-            | System.Windows.Forms.AnchorStyles.Right)));
-            this.textBox1.Location = new System.Drawing.Point(12, 402);
-            this.textBox1.Multiline = true;
-            this.textBox1.Name = "textBox1";
-            this.textBox1.ScrollBars = System.Windows.Forms.ScrollBars.Vertical;
-            this.textBox1.Size = new System.Drawing.Size(755, 144);
-            this.textBox1.TabIndex = 5;
-            // 
             // buttonConnect
             // 
             this.buttonConnect.Location = new System.Drawing.Point(12, 5);
@@ -91,7 +78,7 @@
             this.buttonConnect.TabIndex = 6;
             this.buttonConnect.Text = "Start";
             this.buttonConnect.UseVisualStyleBackColor = true;
-            this.buttonConnect.Click += new System.EventHandler(this.buttonPlay_Click);
+            this.buttonConnect.Click += new System.EventHandler(this.buttonStart_Click);
             // 
             // trackBarPosition
             // 
@@ -104,7 +91,6 @@
             this.trackBarPosition.Size = new System.Drawing.Size(558, 20);
             this.trackBarPosition.TabIndex = 7;
             this.trackBarPosition.TickFrequency = 10;
-            this.trackBarPosition.Scroll += new System.EventHandler(this.trackBar1_Scroll);
             this.trackBarPosition.ValueChanged += new System.EventHandler(this.trackBar1_ValueChanged);
             this.trackBarPosition.MouseDown += new System.Windows.Forms.MouseEventHandler(this.trackBarPosition_MouseDown);
             this.trackBarPosition.MouseUp += new System.Windows.Forms.MouseEventHandler(this.trackBarPosition_MouseUp);
@@ -117,7 +103,6 @@
             this.button1.TabIndex = 8;
             this.button1.Text = "GetYoutubeLink";
             this.button1.UseVisualStyleBackColor = true;
-            this.button1.Click += new System.EventHandler(this.button1_Click);
             // 
             // textBox2
             // 
@@ -135,7 +120,6 @@
             this.button2.TabIndex = 12;
             this.button2.Text = "SetBinding";
             this.button2.UseVisualStyleBackColor = true;
-            this.button2.Click += new System.EventHandler(this.button2_Click);
             // 
             // button3
             // 
@@ -197,7 +181,6 @@
             this.trackBarVolume.TabIndex = 19;
             this.trackBarVolume.TickFrequency = 10;
             this.trackBarVolume.Value = 100;
-            this.trackBarVolume.Scroll += new System.EventHandler(this.trackBarVolume_Scroll);
             this.trackBarVolume.ValueChanged += new System.EventHandler(this.trackBarVolume_ValueChanged);
             // 
             // checkBoxMute
@@ -214,7 +197,7 @@
             // trackBarBlur
             // 
             this.trackBarBlur.AutoSize = false;
-            this.trackBarBlur.Location = new System.Drawing.Point(735, 193);
+            this.trackBarBlur.Location = new System.Drawing.Point(738, 202);
             this.trackBarBlur.Maximum = 100;
             this.trackBarBlur.Name = "trackBarBlur";
             this.trackBarBlur.Orientation = System.Windows.Forms.Orientation.Vertical;
@@ -399,15 +382,6 @@
             this.button5.UseVisualStyleBackColor = true;
             this.button5.Click += new System.EventHandler(this.button5_Click);
             // 
-            // elementHost1
-            // 
-            this.elementHost1.Location = new System.Drawing.Point(483, 243);
-            this.elementHost1.Name = "elementHost1";
-            this.elementHost1.Size = new System.Drawing.Size(228, 140);
-            this.elementHost1.TabIndex = 37;
-            this.elementHost1.Text = "elementHost1";
-            this.elementHost1.Child = this.videoControl;
-            // 
             // button6
             // 
             this.button6.Location = new System.Drawing.Point(372, 306);
@@ -416,7 +390,15 @@
             this.button6.TabIndex = 38;
             this.button6.Text = "Start";
             this.button6.UseVisualStyleBackColor = true;
-            this.button6.Click += new System.EventHandler(this.button6_Click);
+            // 
+            // elementHost1
+            // 
+            this.elementHost1.Location = new System.Drawing.Point(483, 243);
+            this.elementHost1.Name = "elementHost1";
+            this.elementHost1.Size = new System.Drawing.Size(228, 140);
+            this.elementHost1.TabIndex = 37;
+            this.elementHost1.Text = "elementHost1";
+            this.elementHost1.Child = this.videoControl1;
             // 
             // Form1
             // 
@@ -450,7 +432,6 @@
             this.Controls.Add(this.textBox2);
             this.Controls.Add(this.button1);
             this.Controls.Add(this.buttonConnect);
-            this.Controls.Add(this.textBox1);
             this.Name = "Form1";
             this.Text = "Form1";
             ((System.ComponentModel.ISupportInitialize)(this.trackBarPosition)).EndInit();
@@ -469,8 +450,6 @@
         }
 
         #endregion
-
-        public System.Windows.Forms.TextBox textBox1;
         private System.Windows.Forms.Button buttonConnect;
         private System.Windows.Forms.TrackBar trackBarPosition;
         private System.Windows.Forms.Button button1;
@@ -501,7 +480,7 @@
         private System.Windows.Forms.Button button4;
         private System.Windows.Forms.Button button5;
         private System.Windows.Forms.Integration.ElementHost elementHost1;
-        private VideoControl videoControl;
+        private VideoControl videoControl1;
         private System.Windows.Forms.Button button6;
     }
 }
