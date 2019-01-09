@@ -37,6 +37,11 @@ namespace VlcTest
 
         public void Setup(object[] args)
         {
+            if (playbackThread != null && playbackThread.IsAlive)
+            {
+                logger.Debug("(playbackThread != null && playbackThread.IsAlive)");
+                return;
+            }
 
             playbackThread = new Thread(PlaybackProc);
             playbackThread.IsBackground = true;
@@ -53,7 +58,9 @@ namespace VlcTest
 
                 var args = obj as object[];
                 var fileName = args[0].ToString();
+
                 StartUp(fileName);
+                started = true;
 
                 while (true)
                 {
@@ -88,6 +95,9 @@ namespace VlcTest
                 CleanUp();
 
                 OnStateChanged("Closed");
+
+                started = false;
+
             }
 
             logger.Trace("PlaybackProc() END");
@@ -154,7 +164,7 @@ namespace VlcTest
                             _args = command.args[1] as object[];
                         }
 
-                        DoPostMessage(cmd, _args);
+                        PostMessage(cmd, _args);
                     }
                     break;
                 case "Playing":
@@ -250,8 +260,9 @@ namespace VlcTest
 
         private void OnStateChanged(string state, object[] args = null)
         {
-            StateChanged?.Invoke(state, args);
+            //StateChanged?.BeginInvoke(state, args, null, null);
 
+            StateChanged?.Invoke(state, args);
         }
 
 
@@ -268,6 +279,8 @@ namespace VlcTest
 
         public void Play(string uri, bool forse = false)
         {
+            logger.Debug("Play(...) " + uri);
+
             if (IsConnected)
             {
                 if (/*IsPaused ||*/ IsStopped || forse)
@@ -312,6 +325,8 @@ namespace VlcTest
 
         public void Pause()
         {
+            logger.Debug("Pause()");
+
             if (IsConnected && IsOpened)
             {
                 EnqueueCommand("RunPlaybackCommand", new[] { "Pause" });
@@ -320,29 +335,37 @@ namespace VlcTest
 
         public void Stop()
         {
-            if (IsConnected)
+            logger.Debug("Stop()");
+
+            if (IsConnected && started)
             {
                 EnqueueCommand("RunPlaybackCommand", new[] { "Stop" });
             }
             else
             {
-                ClosePlaybackProccess();
+                Close();
             }
         }
 
         public void Close()
         {
+            logger.Debug("Close()");
             closing = true;
             commandQueue.Clear();
             syncEvent.Set();
-            
-            //CleanUp();
+
+            if (!started)
+            {
+                CleanUp();
+            }
+
         }
 
 
-
-        private void StartUp(string fileName)
+        private bool started = false;
+        private void StartUp(string mri)
         {
+            logger.Debug("StartUp(...) " + mri);
             try
             {
 
@@ -353,6 +376,7 @@ namespace VlcTest
                 {
                     try
                     {
+                        //Thread.Sleep(5000);
                         logger.Debug("Try to open " + address);
                         OpenCommunicationHost(address);
                         break;
@@ -364,6 +388,8 @@ namespace VlcTest
                         CloseCommuntcationHost();
 
                         address += "_" + Guid.NewGuid();
+
+                        Thread.Sleep(100);
                         continue;
                     }
                 }
@@ -379,7 +405,7 @@ namespace VlcTest
                 string vlcopts = string.Join(" ", _vlcopts);
 
                 var args = new string[] { "--channel=\"" + address + "\"",
-                                           "--media=\"" + fileName + "\"",
+                                           "--media=\"" + mri + "\"",
                                            "--parentid=\"" + Process.GetCurrentProcess().Id + "\"",
                                            //"--eventid=\"" + syncEventId + "\"",
                                            "--vlcopts=\"" + vlcopts + "\"",
@@ -404,7 +430,8 @@ namespace VlcTest
                 playbackStarting = true;
 
                 playbackProcess.Start();
-
+                //Thread.Sleep(50000);
+                started = true;
                 logger.Debug("Client proccess started...");
             }
             catch (Exception ex)
@@ -422,6 +449,7 @@ namespace VlcTest
 
         private void CleanUp()
         {
+            logger.Debug("CleanUp()");
             try
             {
                 CloseCommuntcationHost();
@@ -439,6 +467,8 @@ namespace VlcTest
 
         private void ClosePlaybackProccess()
         {
+            logger.Debug("ClosePlaybackProccess()");
+
             try
             {
                 playbackStarting = false;
@@ -483,7 +513,7 @@ namespace VlcTest
         private void OpenCommunicationHost(string address)
         {
 
-            logger.Debug("OpenServiceHost(...) " + address);
+            logger.Debug("OpenCommunicationHost(...) " + address);
 
                System.ServiceModel.Channels.Binding binding = null;
             var uri = new Uri(address);
@@ -546,7 +576,7 @@ namespace VlcTest
 
         private void CloseCommuntcationHost()
         {
-            logger.Debug("Close()");
+            logger.Debug("CloseCommuntcationHost()");
 
             if (service != null)
             {
@@ -590,9 +620,7 @@ namespace VlcTest
                 }
                 else
                 {
-                    OnStateChanged("SetupDisplay", args);
-
-
+  
                     //throw new Exception("CONNECTION_ERROR!");
                     //Thread.Sleep(15000);
 
@@ -605,7 +633,10 @@ namespace VlcTest
 
                     };
 
-                    OnStateChanged("Client " + id + " connected...");
+                    OnStateChanged("SetupDisplay", args);
+
+
+                    logger.Debug("Client " + id + " connected...");
 
                     Result = true;
                 }
@@ -771,8 +802,12 @@ namespace VlcTest
 
         }
 
-        private void DoPostMessage(string msg, object[] args)
+        private void PostMessage(string msg, object[] args)
         {
+            if (closing)
+            {
+                return;
+            }
 
             //owner.Log("PostMessage BEGIN");
             try

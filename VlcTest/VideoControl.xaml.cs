@@ -258,7 +258,7 @@ namespace VlcTest
             displayEvent?.Set();
         }
 
-        public void Clear()
+        public void ClearDisplay()
         {
             Debug.WriteLine("VideoControl::Clear() " + appEventId);
 

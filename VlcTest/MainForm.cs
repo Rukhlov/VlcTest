@@ -60,7 +60,7 @@ namespace VlcTest
         private void communicationService_StateChanged(string state, object[] args)
         {
 
-            logger.Debug("communicationService_StateChanged(...) " + state);
+            //logger.Debug("communicationService_StateChanged(...) " + state);
 
             if(state == "UpdateUi")
             {
@@ -68,6 +68,8 @@ namespace VlcTest
             }
             else if(state == "SetupDisplay")
             {
+                logger.Debug("communicationService_StateChanged(...) " + state);
+
                 var eventId = args?[0]?.ToString();
                 var memoryId = args?[1]?.ToString();
 
@@ -75,20 +77,26 @@ namespace VlcTest
             }
             else if (state == "StartDisplay")
             {
+                logger.Debug("communicationService_StateChanged(...) " + state);
                 videoControl.StartDisplay();
             }
             else if (state == "StopDisplay")
             {
+                logger.Debug("communicationService_StateChanged(...) " + state);
+
                 videoControl.StopDisplay();
             }
             else if (state == "Stopped")
             {
-                videoControl.Clear();
+                logger.Debug("communicationService_StateChanged(...) " + state);
+                videoControl.ClearDisplay();
                 UpdateUi();
             }
             else if (state == "LengthChanged")
             {
-               var val0 = args[0].ToString();
+                logger.Debug("communicationService_StateChanged(...) " + state);
+
+                var val0 = args[0].ToString();
                 SetMediaLength(val0);
 
             }
@@ -100,7 +108,9 @@ namespace VlcTest
             }
             else if (state == "Closed")
             {
-                videoControl.Clear();
+                logger.Debug("communicationService_StateChanged(...) " + state);
+
+                videoControl.ClearDisplay();
                 UpdateUi();
             }
         }

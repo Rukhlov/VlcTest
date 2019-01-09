@@ -105,6 +105,7 @@ namespace VlcPlayer
             {
                 string name = Id.ToString("N");
 
+               
                 bool connected = communicationChannel.Connect(name, args);
 
                 if (!connected)
