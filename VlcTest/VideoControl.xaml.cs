@@ -242,15 +242,14 @@ namespace VlcTest
         }
 
 
-
-        public void Play()
+        public void StartDisplay()
         {
             Debug.WriteLine("VideoControl::Play()");
             playing = true;
             startupEvent?.Set();
         }
 
-        public void Stop()
+        public void StopDisplay()
         {
             Debug.WriteLine("VideoControl::Stop()");
             playing = false;
