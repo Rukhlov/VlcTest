@@ -93,9 +93,9 @@ namespace VlcTest
 
         public PlaybackSession Session { get; private set; }
 
-        private ServiceHost service = null;
+        private ServiceHost serviceHost = null;
 
-        private ICommunicationCallback playbackChannel = null;
+        private ICommunicationCallback ipcChannel = null;
 
 
         private Thread playbackThread = null;
@@ -104,36 +104,18 @@ namespace VlcTest
 
         private CommandQueue commandQueue = new CommandQueue();
 
-
-
-        // public Dictionary<ICommunicationCallback, string> clients = new Dictionary<ICommunicationCallback, string>();
         internal string address = CommunicationConst.PipeAddress;
 
-
-        public bool IsOpened = false;
-
-        public bool IsConnected
+        public bool InCommunication
         {
             get
             {
-                return (playbackChannel != null &&
-                    ((IClientChannel)playbackChannel).State == CommunicationState.Opened);
+                return (ipcChannel != null &&
+                    ((IClientChannel)ipcChannel).State == CommunicationState.Opened);
             }
         }
 
-
-        internal bool IsStopped = true;
-        internal bool IsPaused = false;
-
-
-        public string Name = "";
-        public event Action<string, object[]> _StateChanged;
-        private void _OnStateChanged(string state, object[] args = null)
-        {
-            //StateChanged?.BeginInvoke(state, args, null, null);
-
-            _StateChanged?.Invoke(state, args);
-        }
+        private string IpcServerName = "";
 
         private ServiceState _state = ServiceState.Created;
         public ServiceState State
@@ -224,14 +206,12 @@ namespace VlcTest
         private static string currentDirectory = Path.GetDirectoryName(Application.ExecutablePath);
         private Process playbackProcess = null;
 
-        private volatile bool playbackStarting = false;
-
-
         public void Setup(object[] args)
         {
 
             if (playbackThread != null && playbackThread.IsAlive)
             {
+                
                 logger.Debug("(playbackThread != null && playbackThread.IsAlive)");
                 return;
             }
@@ -242,8 +222,6 @@ namespace VlcTest
             playbackThread.IsBackground = true;
             playbackThread.Start(args);
         }
-
-
 
 
         private void PlaybackProc(object obj)
@@ -265,7 +243,6 @@ namespace VlcTest
                 };
 
                 StartUp(fileName);
-                started = true;
 
                 State = ServiceState.Opened;
                 OnOpened();
@@ -303,8 +280,9 @@ namespace VlcTest
             finally
             {
                 CleanUp();
+
                 State = ServiceState.Closed;
-                started = false;
+                Session = null;
 
                 OnClosed(null);
             }
@@ -332,36 +310,25 @@ namespace VlcTest
             switch (command.command)
             {
                 case "Ipc_Opened":
-                    {
-                        IsOpened = true;
-
+                    { 
                         var obj = command.args[0];
 
                         var serv = (ServiceHost)obj;
-                        Name = "Server: " + string.Join(";", serv.BaseAddresses.Select(a => a.ToString()));
+                        IpcServerName = "Server: " + string.Join(";", serv.BaseAddresses.Select(a => a.ToString()));
 
-
-                        _OnStateChanged("Service openned...");
                     }
                     break;
                 case "Ipc_Faulted":
                     {
                         //...
-
-                        playbackChannel = null;
-                        _OnStateChanged("Service fauled...");
                     }
                     break;
                 case "Ipc_Closed":
                     {
                         //...
+                        IpcServerName = "";
 
-
-                        Name = "";
-
-                        IsOpened = false;
-                        playbackChannel = null;
-                        _OnStateChanged("Service closed...");
+                        ipcChannel = null;
                     }
                     break;
                 case "Ipc_ClientConnected":
@@ -374,16 +341,16 @@ namespace VlcTest
                             var channel = args[1] as ICommunicationCallback;
                             var _args = args[2] as object[];
 
-                            if (playbackChannel != null)
+                            if (ipcChannel != null)
                             {
                                 // TODO:
                                 // ...
                             }
                             else
                             {
-                                playbackChannel = channel;
+                                ipcChannel = channel;
 
-                                ((IClientChannel)playbackChannel).Closed += (o, a) =>
+                                ((IClientChannel)ipcChannel).Closed += (o, a) =>
                                 {
                                     logger.Debug("Client " + id + " channel closed...");
 
@@ -406,7 +373,7 @@ namespace VlcTest
                 case "Ipc_ClientDisconnected":
                     {
                         //...
-                        playbackChannel = null;
+                        ipcChannel = null;
                     }
                     break;
                 case "Playback_RunCommand":
@@ -423,19 +390,13 @@ namespace VlcTest
                     break;
                 case "Playback_Playing":
                     {
-                        
-                       // IsStopped = false;
-
-                        playbackStarting = false;
-                        count++;
-                        IsPaused = false;
-                        IsStopped = false;
-
                         Session.State = PlaybackState.Playing;
+
+                        count++;
+
+                        
                         OnPlaybackPlaying();
 
-                        //_OnStateChanged("UpdateUi");
-                        //owner.UpdateUi();
 
                         logger.Debug("Play count " + count);
                     }
@@ -444,9 +405,6 @@ namespace VlcTest
                 case "Playback_Paused":
                     {
                        
-
-                        IsPaused = true;
-
                         Session.State = PlaybackState.Paused;
                         OnPlaybackPaused();
                     }
@@ -463,10 +421,7 @@ namespace VlcTest
                     break;
                 case "Playback_Stopped":
                     {
-                       
-
-                        IsStopped = true;
-
+        
                         Session.State = PlaybackState.Stopped;
                         OnPlaybackStopped();
 
@@ -474,8 +429,6 @@ namespace VlcTest
                     break;
                 case "Playback_LengthChanged":
                     {
-                        //_OnStateChanged("Playback_LengthChanged", command.args);
-                        
                         var val0 = command.args[0].ToString();
                         long len = 0;
                         if (long.TryParse(val0, out len))
@@ -492,8 +445,7 @@ namespace VlcTest
                     break;
                 case "Playback_Position":
                     {
-                        //_OnStateChanged("Playback_Position", command.args);
-
+  
                         var val0 = command.args[0].ToString();
                         float position = 0;
                         if (float.TryParse(val0, out position))
@@ -505,8 +457,6 @@ namespace VlcTest
                             }
 
                         }
-
-                        //owner.SetPosition(val0);
                     }
                     break;
                 default:
@@ -522,9 +472,11 @@ namespace VlcTest
         {
             logger.Debug("Play(...) " + uri);
 
-            if (IsConnected)
+            if (InCommunication)
             {
-                if (/*IsPaused ||*/ IsStopped || forse)
+                bool playing = (Session.State == PlaybackState.Playing || Session.State == PlaybackState.Paused);
+
+                if (!playing || forse)
                 {
                     EnqueueCommand("Playback_RunCommand", new object[] { "Play", new[] { uri } });
                 }
@@ -535,7 +487,6 @@ namespace VlcTest
             }
             else
             {
-                //StartPlayer(mediaUri);
                 Setup(new object[] { uri });
             }
         }
@@ -570,7 +521,7 @@ namespace VlcTest
         {
             logger.Debug("Pause()");
 
-            if (IsConnected && IsOpened)
+            if (InCommunication )
             {
                 EnqueueCommand("Playback_RunCommand", new[] { "Pause" });
             }
@@ -580,7 +531,9 @@ namespace VlcTest
         {
             logger.Debug("Stop()");
 
-            if (IsConnected && started)
+            bool started = (State == ServiceState.Opened || State == ServiceState.ReadyToPlay);
+
+            if (InCommunication && started)
             {
                 EnqueueCommand("Playback_RunCommand", new[] { "Stop" });
             }
@@ -590,8 +543,6 @@ namespace VlcTest
             }
         }
 
-
-        private bool started = false;
         private void StartUp(string mri,  string [] vlcopts = null)
         {
             logger.Debug("StartUp(...) " + mri);
@@ -606,15 +557,14 @@ namespace VlcTest
                     try
                     {
                         //Thread.Sleep(5000);
-                        logger.Debug("Try to open " + address);
-                        OpenCommunicationHost(address);
+                        CreateIpc(address);
                         break;
                     }
                     catch (AddressAlreadyInUseException ex)
                     {
                         logger.Error(ex);
 
-                        CloseCommuntcationHost();
+                        CloseIpc();
 
                         address += "_" + Guid.NewGuid();
 
@@ -623,9 +573,13 @@ namespace VlcTest
                     }
                 }
 
-                IsOpened = true;
-                IsStopped = true;
+                bool serviceOpened = (serviceHost != null && serviceHost.State == CommunicationState.Opened);
 
+                if (!serviceOpened)
+                {
+                    throw new Exception("Cannot open ipc service host");
+                }
+ 
                 if (vlcopts == null)
                 {
                     vlcopts = new string[] 
@@ -660,17 +614,15 @@ namespace VlcTest
 
                 playbackProcess.Exited += PlaybackProcess_Exited;
 
-                playbackStarting = true;
-
                 playbackProcess.Start();
                 //Thread.Sleep(50000);
-                started = true;
+
                 logger.Debug("Client proccess started...");
             }
             catch (Exception ex)
             {
                 //buttonStartClientInstance.Enabled = true;
-                playbackStarting = false;
+
                 logger.Error(ex);
             }
             finally
@@ -690,19 +642,18 @@ namespace VlcTest
                 logger.Debug("Client process exited with code: " + code);
                 p.Dispose();
 
-                playbackStarting = false;
-
                 Close();
             }
         }
 
 
-        private void OpenCommunicationHost(string address)
+        private void CreateIpc(string address)
         {
 
-            logger.Debug("OpenCommunicationHost(...) " + address);
+            logger.Debug("CreateIpc(...) " + address);
 
-               System.ServiceModel.Channels.Binding binding = null;
+            System.ServiceModel.Channels.Binding binding = null;
+
             var uri = new Uri(address);
             if (uri.Scheme == "net.pipe")
             {
@@ -725,15 +676,15 @@ namespace VlcTest
                 return;
             }
 
-            service = new ServiceHost(this, uri);
+            serviceHost = new ServiceHost(this, uri);
 
-            service.AddServiceEndpoint(typeof(ICommunicationService), binding, uri);
+            serviceHost.AddServiceEndpoint(typeof(ICommunicationService), binding, uri);
 
-            service.Opened += new EventHandler(service_Opened);
-            service.Faulted += new EventHandler(service_Faulted);
-            service.Closed += new EventHandler(service_Closed);
+            serviceHost.Opened += new EventHandler(service_Opened);
+            serviceHost.Faulted += new EventHandler(service_Faulted);
+            serviceHost.Closed += new EventHandler(service_Closed);
 
-            service.Open();
+            serviceHost.Open();
 
 
         }
@@ -809,14 +760,14 @@ namespace VlcTest
                 return;
             }
 
-            if (playbackChannel == null)
+            if (ipcChannel == null)
             {
                 return;
             }
 
             try
             {
-                playbackChannel.PostMessage(cmd, args);
+                ipcChannel.PostMessage(cmd, args);
                 //Thread.Sleep(2000);
             }
             catch (Exception ex)
@@ -876,6 +827,9 @@ namespace VlcTest
             commandQueue.Clear();
             syncEvent.Set();
 
+            bool started = (State == ServiceState.Opened || 
+                State == ServiceState.ReadyToPlay);
+
             if (!started)
             {
                 CleanUp();
@@ -889,7 +843,7 @@ namespace VlcTest
             logger.Debug("CleanUp()");
             try
             {
-                CloseCommuntcationHost();
+                CloseIpc();
             }
             catch (Exception ex)
             {
@@ -901,6 +855,37 @@ namespace VlcTest
             }
         }
 
+        private void CloseIpc()
+        {
+            logger.Debug("CloseIpc()");
+
+            if (serviceHost != null)
+            {
+                try
+                {
+                    if (serviceHost.State != CommunicationState.Closed)
+                    {
+                        //service.Close();
+                        serviceHost.Abort();
+                    }
+
+                }
+                catch (Exception ex)
+                {
+                    logger.Error(ex);
+                    serviceHost.Abort();
+                }
+                finally
+                {
+                    serviceHost.Opened -= new EventHandler(service_Opened);
+                    serviceHost.Faulted -= new EventHandler(service_Faulted);
+                    serviceHost.Closed -= new EventHandler(service_Closed);
+                    serviceHost = null;
+                    ipcChannel = null;
+                }
+            }
+
+        }
 
         private void ClosePlaybackProccess()
         {
@@ -908,8 +893,6 @@ namespace VlcTest
 
             try
             {
-                playbackStarting = false;
-
                 if (playbackProcess != null && !playbackProcess.HasExited)
                 {
                     playbackProcess.Kill();
@@ -930,38 +913,6 @@ namespace VlcTest
             }
         }
 
-        private void CloseCommuntcationHost()
-        {
-            logger.Debug("CloseCommuntcationHost()");
-
-            if (service != null)
-            {
-                try
-                {
-                    if (service.State != CommunicationState.Closed)
-                    {
-                        //service.Close();
-                        service.Abort();
-                    }
-
-                }
-                catch (Exception ex)
-                {
-                    logger.Error(ex);
-                    service.Abort();
-                }
-                finally
-                {
-                    service.Opened -= new EventHandler(service_Opened);
-                    service.Faulted -= new EventHandler(service_Faulted);
-                    service.Closed -= new EventHandler(service_Closed);
-                    service = null;
-                    playbackChannel = null;
-                }
-            }
-            IsOpened = false;
-
-        }
 
 
         private object locker = new object();

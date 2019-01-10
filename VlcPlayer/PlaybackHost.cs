@@ -1199,7 +1199,7 @@ namespace VlcPlayer
 
                 }
             }
-            else if (command == "SwitchLoopPlayback")
+            else if (command == "SetLoopPlayback")
             {
                 bool _loopPlayback = false;
                 if (bool.TryParse(arg0, out _loopPlayback))

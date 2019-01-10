@@ -59,7 +59,6 @@ namespace VlcTest
                 {
                     _playbackService = new PlaybackService();
   
-                    _playbackService._StateChanged += _playbackService_StateChanged;
                     _playbackService.StateChanged += playbackService_StateChanged;
                     _playbackService.Opened += playbackService_Opened;
                     _playbackService.ReadyToPlay += playbackService_ReadyToPlay;
@@ -94,6 +93,15 @@ namespace VlcTest
                         labelCurrentTime.Text = ts.ToString("hh\\:mm\\:ss");
 
                         var pos = (int)(mediaPosition * trackBarPosition.Maximum);
+                        if(pos > trackBarPosition.Maximum)
+                        {
+                            pos = trackBarPosition.Maximum;
+                        }
+                        else if(pos< trackBarPosition.Minimum)
+                        {
+                            pos = trackBarPosition.Minimum;
+                        }
+
                         if (trackBarPosition.Value != pos)
                         {
                             trackBarPosition.Value = pos;
@@ -200,61 +208,6 @@ namespace VlcTest
             UpdateUi();
         }
 
-        private void _playbackService_StateChanged(string state, object[] args)
-        {
-
-            //logger.Debug("communicationService_StateChanged(...) " + state);
-
-            if(state == "UpdateUi")
-            {
-                UpdateUi();
-            }
-            else if(state == "Playback_SetupDisplay")
-            {
-                logger.Debug("communicationService_StateChanged(...) " + state);
-
-                //var eventId = args?[0]?.ToString();
-                //var memoryId = args?[1]?.ToString();
-
-                //var eventId = playbackSession.EventSyncId;
-                //var memoryId = playbackSession.MemoryBufferId;
-
-                //CreateVideoControl(eventId, memoryId);
-            }
-            else if (state == "Playback_StartDisplay")
-            {
-                //logger.Debug("communicationService_StateChanged(...) " + state);
-                //videoControl.StartDisplay();
-            }
-            else if (state == "Playback_StopDisplay")
-            {
-                //logger.Debug("communicationService_StateChanged(...) " + state);
-
-                //videoControl.StopDisplay();
-            }
-            else if (state == "Playback_Stopped")
-            {
-                //logger.Debug("communicationService_StateChanged(...) " + state);
-                //videoControl.ClearDisplay();
-                //UpdateUi();
-            }
-            else if (state == "Playback_LengthChanged")
-            {
-                logger.Debug("communicationService_StateChanged(...) " + state);
-
-                var val0 = args[0].ToString();
-                //SetMediaLength(val0);
-
-            }
-            else if (state == "Playback_Position")
-            {
-                var val0 = args[0].ToString();
-
-                //SetPosition(val0);
-            }
-
-        }
-
 
         internal void UpdateUi()
         {
@@ -269,15 +222,23 @@ namespace VlcTest
             }
             else
             {
-                trackBarPosition.Enabled = !playbackService.IsStopped;
-                if (playbackService.IsStopped || !playbackService.IsConnected)
+                var session = playbackService?.Session;
+                bool inPlayingMode = false;
+                if (session != null)
+                {
+                    inPlayingMode = (playbackSession.State == PlaybackState.Playing
+                        || playbackSession.State == PlaybackState.Paused);
+                }
+
+                trackBarPosition.Enabled = inPlayingMode;
+                if (!inPlayingMode)
                 {
                     labelCurrentTime.Text = "--:--";
                     labelTotalTime.Text = "--:--";
                     trackBarPosition.Value = 0;
                 }
 
-                buttonPlay.Text = (playbackService.IsPaused || playbackService.IsStopped || !playbackService.IsConnected) ? "Play" : "Pause";
+                buttonPlay.Text = (session?.State == PlaybackState.Playing) ? "Pause" : "Play";
 
             }
         }
@@ -653,7 +614,7 @@ namespace VlcTest
 
         private void checkBoxLoopPlayback_CheckedChanged(object sender, EventArgs e)
         {
-            SetPlaybackParameter("SwitchLoopPlayback");
+            SetPlaybackParameter("SetLoopPlayback", new object[] { checkBoxLoopPlayback.Checked });
         }
 
         private void button4_Click(object sender, EventArgs e)
@@ -662,11 +623,6 @@ namespace VlcTest
             {
                 playbackService.Close();
             }
-        }
-
-        private void button5_Click(object sender, EventArgs e)
-        {
-            SetPlaybackParameter("GetStats");
         }
 
 
