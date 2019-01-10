@@ -20,12 +20,6 @@ namespace VlcTest
 
             //videoForm.Visible = true;
 
-            playbackService = new PlaybackService();
-           // playbackService.Setup();
-
-            playbackService.StateChanged += new Action<string, object[]>(communicationService_StateChanged);
-
-
             UpdateUi();
 
             timer.Interval = 1000;
@@ -54,10 +48,159 @@ namespace VlcTest
         private Timer timer = new Timer();
         internal VideoControl videoControl = new VideoControl();
 
-        private PlaybackService playbackService = null;
+        private PlaybackSession playbackSession = null;
+        private static PlaybackService _playbackService = null;
+        
+        internal PlaybackService playbackService
+        {
+            get
+            {
+                if(_playbackService == null)
+                {
+                    _playbackService = new PlaybackService();
+  
+                    _playbackService._StateChanged += _playbackService_StateChanged;
+                    _playbackService.StateChanged += playbackService_StateChanged;
+                    _playbackService.Opened += playbackService_Opened;
+                    _playbackService.ReadyToPlay += playbackService_ReadyToPlay;
+                    _playbackService.Closed += playbackService_Closed;
+
+                    _playbackService.PlaybackStartDisplay += playbackService_PlaybackStartDisplay;
+                    _playbackService.PlaybackStopDisplay += playbackService_PlaybackStopDisplay;
+
+                    _playbackService.PlaybackPositionChanged += playbackService_PlaybackPositionChanged;
+                    _playbackService.PlaybackLengthChanged += playbackService_PlaybackLengthChanged;
+                }
+
+                return _playbackService;
+            }
+        }
 
 
-        private void communicationService_StateChanged(string state, object[] args)
+
+        private void playbackService_PlaybackPositionChanged(float position)
+        {
+           // if (mediaPosition != position)
+            {
+                mediaPosition = position;
+                long currTime = (long)(totalMediaLength * mediaPosition);
+                TimeSpan ts = TimeSpan.FromMilliseconds(currTime);
+
+                Invoke(new Action(() =>
+                {
+
+                    if (!mouseDown)
+                    {
+                        labelCurrentTime.Text = ts.ToString("hh\\:mm\\:ss");
+
+                        var pos = (int)(mediaPosition * trackBarPosition.Maximum);
+                        if (trackBarPosition.Value != pos)
+                        {
+                            trackBarPosition.Value = pos;
+                        }
+                    }
+                }));
+            }
+        }
+
+        private void playbackService_PlaybackLengthChanged(long len)
+        {
+         //   if (totalMediaLength != len)
+            {
+                totalMediaLength = len;
+                TimeSpan ts = TimeSpan.FromMilliseconds(totalMediaLength);
+
+                Invoke(new Action(() =>
+                {
+                    labelTotalTime.Text = ts.ToString("hh\\:mm\\:ss");
+
+                }));
+            }
+        }
+
+        private void playbackService_PlaybackStartDisplay()
+        {
+            logger.Debug("playbackService_PlaybackStartDisplay(...)");
+
+            videoControl.StartDisplay();
+        }
+
+        private void playbackService_PlaybackStopDisplay()
+        {
+            logger.Debug("playbackService_PlaybackStopDisplay(...)");
+
+            videoControl.StopDisplay();
+        }
+
+        private void playbackService_Opened(object arg1, object[] arg2)
+        {
+
+        }
+
+        private void playbackService_ReadyToPlay(object arg1, object[] arg2)
+        {
+            var eventId = playbackSession.EventSyncId;
+            var memoryId = playbackSession.MemoryBufferId;
+
+            CreateVideoControl(eventId, memoryId);
+        }
+
+        private void playbackService_StateChanged(ServiceState newState, ServiceState oldState)
+        {
+            if(newState == ServiceState.Opened)
+            {
+                if (playbackSession != null)
+                {
+                    playbackSession.StateChanged -= PlaybackSession_StateChanged;
+                }
+
+                playbackSession = playbackService.Session;
+               
+                playbackSession.StateChanged += PlaybackSession_StateChanged;
+            }
+            else if(newState == ServiceState.Closed)
+            {
+                //...
+            }
+        }
+
+        private void PlaybackSession_StateChanged(PlaybackState state, PlaybackState old)
+        {
+            if(state == PlaybackState.Opening)
+            {
+
+            }
+            else if( state == PlaybackState.Playing)
+            {
+
+                UpdateUi();
+            }
+            else if (state == PlaybackState.Paused)
+            {
+                UpdateUi();
+            }
+            else if (state == PlaybackState.Stopped)
+            {
+                logger.Debug("PlaybackSession_StateChanged(...) " + state);
+                videoControl.ClearDisplay();
+                UpdateUi();
+            }
+            else
+            {
+
+            }
+
+        }
+
+        private void playbackService_Closed(object arg1, object[] arg2)
+        {
+            logger.Debug("playbackService_Closed(...)");
+
+            videoControl.ClearDisplay();
+            UpdateUi();
+        }
+
+        private void _playbackService_StateChanged(string state, object[] args)
         {
 
             //logger.Debug("communicationService_StateChanged(...) " + state);
@@ -66,53 +209,50 @@ namespace VlcTest
             {
                 UpdateUi();
             }
-            else if(state == "SetupDisplay")
+            else if(state == "Playback_SetupDisplay")
             {
                 logger.Debug("communicationService_StateChanged(...) " + state);
 
-                var eventId = args?[0]?.ToString();
-                var memoryId = args?[1]?.ToString();
+                //var eventId = args?[0]?.ToString();
+                //var memoryId = args?[1]?.ToString();
 
-                CreateVideoControl(eventId, memoryId);
-            }
-            else if (state == "StartDisplay")
-            {
-                logger.Debug("communicationService_StateChanged(...) " + state);
-                videoControl.StartDisplay();
-            }
-            else if (state == "StopDisplay")
-            {
-                logger.Debug("communicationService_StateChanged(...) " + state);
+                //var eventId = playbackSession.EventSyncId;
+                //var memoryId = playbackSession.MemoryBufferId;
 
-                videoControl.StopDisplay();
+                //CreateVideoControl(eventId, memoryId);
             }
-            else if (state == "Stopped")
+            else if (state == "Playback_StartDisplay")
             {
-                logger.Debug("communicationService_StateChanged(...) " + state);
-                videoControl.ClearDisplay();
-                UpdateUi();
+                //logger.Debug("communicationService_StateChanged(...) " + state);
+                //videoControl.StartDisplay();
             }
-            else if (state == "LengthChanged")
+            else if (state == "Playback_StopDisplay")
+            {
+                //logger.Debug("communicationService_StateChanged(...) " + state);
+
+                //videoControl.StopDisplay();
+            }
+            else if (state == "Playback_Stopped")
+            {
+                //logger.Debug("communicationService_StateChanged(...) " + state);
+                //videoControl.ClearDisplay();
+                //UpdateUi();
+            }
+            else if (state == "Playback_LengthChanged")
             {
                 logger.Debug("communicationService_StateChanged(...) " + state);
 
                 var val0 = args[0].ToString();
-                SetMediaLength(val0);
+                //SetMediaLength(val0);
 
             }
-            else if (state == "Position")
+            else if (state == "Playback_Position")
             {
                 var val0 = args[0].ToString();
 
-                SetPosition(val0);
+                //SetPosition(val0);
             }
-            else if (state == "Closed")
-            {
-                logger.Debug("communicationService_StateChanged(...) " + state);
 
-                videoControl.ClearDisplay();
-                UpdateUi();
-            }
         }
 
 
@@ -247,7 +387,7 @@ namespace VlcTest
                 return;
             }
 
-            playbackService.ExecuteCommand(command, args);
+            playbackService.RunPlaybackCommand(command, args);
 
         }
 
@@ -256,12 +396,6 @@ namespace VlcTest
         private void buttonPlay_Click_1(object sender, EventArgs e)
         {
             Debug.WriteLine(">>>>>>>>>>>>>>>>>>>>>>>> buttonPlay_Click_1(...)");
-
-            //if (playbackStarting)
-            //{
-            //    Debug.WriteLine("processStarting " + playbackStarting);
-            //    return;
-            //}
 
             currentMediaFile = textBox2.Text;
             if (string.IsNullOrEmpty(currentMediaFile))
@@ -286,14 +420,7 @@ namespace VlcTest
 
             CreateVideoForm();
 
-            if (playbackService == null)
-            {
-                playbackService = new PlaybackService();
-                playbackService.StateChanged += new Action<string, object[]>(communicationService_StateChanged);
-
-            }
-
-            playbackService?.Play(uri, forse);
+            playbackService.Play(uri, forse);
 
         }
 
@@ -303,7 +430,7 @@ namespace VlcTest
         {
             Debug.WriteLine(">>>>>>>>>>>>>>>>>>>>>>>> buttonPause_Click(...)");
 
-            playbackService?.Pause();
+            playbackService.Pause();
 
         }
 
@@ -311,7 +438,7 @@ namespace VlcTest
         {
             Debug.WriteLine(">>>>>>>>>>>>>>>>>>>>>>>> buttonStop_Click(...)");
 
-            playbackService?.Stop();
+            playbackService.Stop();
 
          }
 

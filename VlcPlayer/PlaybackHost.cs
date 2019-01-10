@@ -1361,7 +1361,7 @@ namespace VlcPlayer
 
         private void CleanupVideo()
         {
-            InvokeEventAsync("CleanupVideo");
+            InvokeEventAsync("StopDisplay");
             Session.VideoSource = null;
         }
 
@@ -1560,7 +1560,7 @@ namespace VlcPlayer
                 if (initiated)
                 {
                     initiated = false;
-                    playback.InvokeEventAsync("Initiated");
+                    playback.InvokeEventAsync("StartDisplay");
                 }
 
                 eventWaitHandle?.Set();
