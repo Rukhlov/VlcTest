@@ -12,7 +12,7 @@ namespace VlcPlayer
 {
 
     [ServiceBehavior(InstanceContextMode = InstanceContextMode.Single, ConcurrencyMode = ConcurrencyMode.Multiple, UseSynchronizationContext = false)]
-    class CommunicationClient : ICommunicationCallback
+    class CommunicationClient : IPlaybackClient// ICommunicationCallback
     {
 
         private static Logger logger = LogManager.GetCurrentClassLogger();
@@ -22,7 +22,8 @@ namespace VlcPlayer
         }
         private readonly PlaybackHost playback = null;
 
-        private ICommunicationService communicationChannel = null;
+        //private ICommunicationService playbackService = null;
+        private IPlaybackService playbackService = null;
 
         private Guid Id = Guid.NewGuid();
 
@@ -33,9 +34,9 @@ namespace VlcPlayer
             {
                 bool isConnected = false;
 
-                if (communicationChannel != null)
+                if (playbackService != null)
                 {
-                    var channel = ((IClientChannel)communicationChannel);
+                    var channel = ((IClientChannel)playbackService);
                     isConnected = (channel.State == CommunicationState.Opened);
                 }
 
@@ -68,9 +69,9 @@ namespace VlcPlayer
 
 
                 // InstanceContext context = new InstanceContext(serverCallback);
-                communicationChannel = DuplexChannelFactory<ICommunicationService>.CreateChannel(this, binding, new EndpointAddress(uri));
+                playbackService = DuplexChannelFactory<IPlaybackService>.CreateChannel(this, binding, new EndpointAddress(uri));
 
-                IClientChannel channel = (IClientChannel)communicationChannel;
+                IClientChannel channel = (IClientChannel)playbackService;
 
                 channel.Opened += new EventHandler(channel_Opened);
                 channel.Closed += new EventHandler(channel_Closed);
@@ -95,32 +96,48 @@ namespace VlcPlayer
         {
             logger.Debug("Channel openned...");
 
-           // Connect();
+            // Connect();
 
         }
 
-        public void Connect(object[] args = null)
+        public PlaybackOptions Connect(object[] args = null)
         {
+            PlaybackOptions options = null;
             try
             {
                 string name = Id.ToString("N");
 
-               
-                bool connected = communicationChannel.Connect(name, args);
-
-                if (!connected)
+                //PlaybackOptions options = null;
+                var obj = playbackService.Connect(name, args);
+                if (obj == null)
                 {
                     //TODO:
                     throw new Exception("Connection error!");
                 }
 
-                logger.Debug("Client id:" + name + " connected " + connected);
+                options = playbackService.GetPlaybackOptions();
+
+                //if (obj != null)
+                //{
+                //    options = obj as PlaybackOptions;
+                //}
+
+                //if (options == null)
+                //{
+                //    //TODO:
+                //    throw new Exception("Connection error!");
+                //}
+
+                logger.Debug("Client id:" + name + " connected " + (options != null));
+  
             }
             catch (Exception ex)
             {
                 logger.Error(ex);
                 playback.Close();
             }
+
+            return options;
         }
 
 
@@ -128,7 +145,7 @@ namespace VlcPlayer
         {
             try
             {
-                communicationChannel.Disconnect();
+                playbackService.Disconnect();
             }
             catch (Exception ex)
             {
@@ -230,7 +247,7 @@ namespace VlcPlayer
         {
             if (this.IsConnected)
             {
-                communicationChannel.PostMessage(command, args);
+                playbackService.PostMessage(command, args);
             }
         }
 
@@ -238,9 +255,9 @@ namespace VlcPlayer
         {
             try
             {
-                if (communicationChannel != null)
+                if (playbackService != null)
                 {
-                    IClientChannel channel = (IClientChannel)communicationChannel;
+                    IClientChannel channel = (IClientChannel)playbackService;
                     if (channel.State != CommunicationState.Closed)
                     {
                         try

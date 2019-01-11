@@ -4,6 +4,7 @@ using System.Linq;
 using System.Text;
 using System.ServiceModel;
 using System.IO;
+using System.Runtime.Serialization;
 
 namespace VlcContracts
 {
@@ -18,36 +19,13 @@ namespace VlcContracts
     }
 
 
-    [ServiceContract(SessionMode = SessionMode.Required)]
-    public interface _ICommunicationService
-    {
-
-        [OperationContract(IsInitiating = true)]
-        void Connect(string id, int pid);
-
-        [OperationContract(IsTerminating = true)]
-        void Disconnect(string id);
-
-        [OperationContract]
-        string SendMessage(string message);
-
-        [OperationContractAttribute(AsyncPattern = true)]
-        IAsyncResult BeginSendMessage1(string message, AsyncCallback callback, object asyncState);
-        string EndSendMessage1(IAsyncResult result);
-
-        [OperationContract(IsOneWay = true)]
-        void PostMessage(string msg);
-
-
-    }
-
     [ServiceContract(SessionMode = SessionMode.Required, CallbackContract = typeof(ICommunicationCallback))]
     //[ServiceContract(SessionMode = SessionMode.Required)]
     public interface ICommunicationService
     {
 
         [OperationContract(IsInitiating = true)]
-        bool Connect(string id, object[] args);
+        object Connect(string id, object[] args);
 
         [OperationContract(IsTerminating = true)]
         void Disconnect();
@@ -75,9 +53,111 @@ namespace VlcContracts
 
         [OperationContract(IsOneWay = true)]
         void PostMessage(string command, object[] args);
+    }
 
-        //[OperationContract(IsOneWay = true)]
-        //void PostData(byte[] data);
+
+    [ServiceContract(SessionMode = SessionMode.Required, CallbackContract = typeof(IPlaybackClient))]
+    public interface IPlaybackService: ICommunicationService
+    {
+        [OperationContract]
+        PlaybackOptions GetPlaybackOptions();
+    }
+
+    public interface IPlaybackClient : ICommunicationCallback
+    {
+
+    }
+
+
+    [DataContract]
+    public class PlaybackOptions : System.ComponentModel.INotifyPropertyChanged
+    {
+        
+        [DataMember]
+        public int Volume
+        {
+            get { return volume; }
+            set
+            {
+                volume = value;
+                OnPropertyChanged(nameof(Volume));
+            }
+        }
+        private int volume = 0;
+
+        [DataMember]
+        public bool IsMute
+        {
+            get { return isMute; }
+            set
+            {
+                isMute = value;
+                OnPropertyChanged(nameof(IsMute));
+            }
+        }
+        private bool isMute = false;
+
+        [DataMember]
+        public bool LoopPlayback
+        {
+            get { return loopPlayback; }
+            set
+            {
+                loopPlayback = value;
+                OnPropertyChanged(nameof(LoopPlayback));
+            }
+        }
+        private bool loopPlayback = false;
+
+        [DataMember]
+        public int BlurRadius
+        {
+            get { return blurRadius; }
+            set
+            {
+                blurRadius = value;
+                OnPropertyChanged(nameof(BlurRadius));
+            }
+        }
+        private int blurRadius = 0;
+
+        [DataMember]
+        public bool VideoAdjustmentsEnabled { get; set; }
+
+        [DataMember]
+        public int VideoContrast { get; set; }
+
+        public event System.ComponentModel.PropertyChangedEventHandler PropertyChanged;
+        private void OnPropertyChanged(string propertyName)
+        {
+            PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(propertyName));
+        }
+    }
+
+
+
+
+    [ServiceContract(SessionMode = SessionMode.Required)]
+    public interface _ICommunicationService
+    {
+
+        [OperationContract(IsInitiating = true)]
+        void Connect(string id, int pid);
+
+        [OperationContract(IsTerminating = true)]
+        void Disconnect(string id);
+
+        [OperationContract]
+        string SendMessage(string message);
+
+        [OperationContractAttribute(AsyncPattern = true)]
+        IAsyncResult BeginSendMessage1(string message, AsyncCallback callback, object asyncState);
+        string EndSendMessage1(IAsyncResult result);
+
+        [OperationContract(IsOneWay = true)]
+        void PostMessage(string msg);
+
+
     }
 
     [ServiceContract]
@@ -95,7 +175,6 @@ namespace VlcContracts
         [OperationContract]
         Stream GetStream(string streamInfo);
     }
-
 
 
 }

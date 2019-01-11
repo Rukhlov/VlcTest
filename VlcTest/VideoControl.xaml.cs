@@ -73,9 +73,9 @@ namespace VlcTest
                 return this.blurEffect;
             }
 
-            set
+            private set
             {
-                if (!Object.ReferenceEquals(this.blurEffect, value))
+                if (!ReferenceEquals(this.blurEffect, value))
                 {
                     this.blurEffect = value;
                     this.OnPropertyChanged(nameof(BlurEffect));

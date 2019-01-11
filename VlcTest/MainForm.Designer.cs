@@ -197,13 +197,14 @@
             // trackBarBlur
             // 
             this.trackBarBlur.AutoSize = false;
-            this.trackBarBlur.Location = new System.Drawing.Point(738, 202);
+            this.trackBarBlur.Location = new System.Drawing.Point(738, 205);
             this.trackBarBlur.Maximum = 100;
             this.trackBarBlur.Name = "trackBarBlur";
             this.trackBarBlur.Orientation = System.Windows.Forms.Orientation.Vertical;
             this.trackBarBlur.Size = new System.Drawing.Size(20, 136);
             this.trackBarBlur.TabIndex = 21;
             this.trackBarBlur.TickFrequency = 10;
+
             this.trackBarBlur.ValueChanged += new System.EventHandler(this.trackBarBlur_ValueChanged);
             // 
             // label1
@@ -380,7 +381,6 @@
             this.button5.TabIndex = 36;
             this.button5.Text = "GetStats";
             this.button5.UseVisualStyleBackColor = true;
-
             // 
             // button6
             // 
@@ -400,7 +400,7 @@
             this.elementHost1.Text = "elementHost1";
             this.elementHost1.Child = this.videoControl1;
             // 
-            // Form1
+            // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
@@ -432,7 +432,7 @@
             this.Controls.Add(this.textBox2);
             this.Controls.Add(this.button1);
             this.Controls.Add(this.buttonConnect);
-            this.Name = "Form1";
+            this.Name = "MainForm";
             this.Text = "Form1";
             ((System.ComponentModel.ISupportInitialize)(this.trackBarPosition)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarVolume)).EndInit();

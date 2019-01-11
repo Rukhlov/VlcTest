@@ -231,7 +231,18 @@ namespace VlcPlayer
                 var eventId = videoProvider.eventId;
                 var memoId = videoProvider.memoryId;
 
-                communicationClient.Connect(new[] { eventId, memoId });
+               var options = communicationClient.Connect(new[] { eventId, memoId });
+                if (options != null)
+                {
+                    logger.Debug(options.Volume);
+
+                    Session.Volume = options.Volume;
+                    Session.IsMute = options.IsMute;
+                    SetBlurRadius(options.BlurRadius);
+                    loopPlayback = options.LoopPlayback;
+
+
+                }
             }
         }
 

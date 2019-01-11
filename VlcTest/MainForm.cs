@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+using VlcContracts;
 
 namespace VlcTest
 {
@@ -40,6 +41,15 @@ namespace VlcTest
                     UpdatePosition();
                 }
             };
+
+            checkBoxLoopPlayback.Checked = playbackOptions.LoopPlayback;
+            checkBoxMute.Checked = playbackOptions.IsMute;
+            trackBarVolume.Value = playbackOptions.Volume;
+            trackBarBlur.Value = playbackOptions.BlurRadius;
+            checkBoxVideoAdjustments.Checked = playbackOptions.VideoAdjustmentsEnabled;
+
+
+
         }
 
 
@@ -50,14 +60,24 @@ namespace VlcTest
 
         private PlaybackSession playbackSession = null;
         private static PlaybackService _playbackService = null;
-        
+
+        private PlaybackOptions playbackOptions = new PlaybackOptions
+        {
+            IsMute = false,
+            Volume = 90,
+            BlurRadius=0,
+            LoopPlayback = false,
+            VideoAdjustmentsEnabled = false,
+            VideoContrast = 100,
+        };
+
         internal PlaybackService playbackService
         {
             get
             {
                 if(_playbackService == null)
                 {
-                    _playbackService = new PlaybackService();
+                    _playbackService = new PlaybackService(playbackOptions);
   
                     _playbackService.StateChanged += playbackService_StateChanged;
                     _playbackService.Opened += playbackService_Opened;
@@ -265,6 +285,7 @@ namespace VlcTest
                 videoControl = new VideoControl();
 
                 videoControl.Setup(appId, memoryId);
+                videoControl.BlurEffect.Radius = playbackOptions.BlurRadius;
 
                 videoForm.InitVideoControl(videoControl);
 
@@ -434,7 +455,13 @@ namespace VlcTest
 
         private void checkBoxMute_CheckedChanged(object sender, EventArgs e)
         {
-            playbackService.SetMute(checkBoxMute.Checked);
+            bool isMute = checkBoxMute.Checked;
+            if (playbackOptions.IsMute != isMute)
+            {
+                playbackOptions.IsMute = isMute;
+
+                playbackService.SetMute(playbackOptions.IsMute);
+            }
 
         }
 
@@ -526,24 +553,37 @@ namespace VlcTest
 
         private void trackBarVolume_ValueChanged(object sender, EventArgs e)
         {
+           
             var vol = (int)trackBarVolume.Value;
 
-            playbackService.SetVolume(vol);
-           
+            Debug.WriteLine("trackBarVolume_ValueChanged(...) " + playbackOptions.Volume + " " + vol);
+
+            if (playbackOptions.Volume != vol)
+            {
+                playbackOptions.Volume = vol;
+
+                playbackService.SetVolume(playbackOptions.Volume);
+            }
 
         }
 
         private void trackBarBlur_ValueChanged(object sender, EventArgs e)
         {
-            var val = (int)trackBarBlur.Value;
-            var effect = videoControl?.BlurEffect;
-            if (effect != null)
-            {
-                effect.Radius = (double)val;
-            }
+            var blurRadius = (int)trackBarBlur.Value;
 
-            label1.Text = val.ToString();
-            SetPlaybackParameter("Blur", new object[] { val });
+            if (playbackOptions.BlurRadius != blurRadius)
+            {
+                playbackOptions.BlurRadius = blurRadius;
+
+                var effect = videoControl?.BlurEffect;
+                if (effect != null)
+                {
+                    effect.Radius = (double)playbackOptions.BlurRadius; //(double)blurRadius;
+
+                    label1.Text = playbackOptions.BlurRadius.ToString();
+                    SetPlaybackParameter("Blur", new object[] { playbackOptions.BlurRadius });
+                }
+            }
         }
 
         private void labelCurrentTime_Click(object sender, EventArgs e)
@@ -614,7 +654,14 @@ namespace VlcTest
 
         private void checkBoxLoopPlayback_CheckedChanged(object sender, EventArgs e)
         {
-            SetPlaybackParameter("SetLoopPlayback", new object[] { checkBoxLoopPlayback.Checked });
+            bool loopPlayback = checkBoxLoopPlayback.Checked;
+
+            if (playbackOptions.LoopPlayback != loopPlayback)
+            {
+                playbackOptions.LoopPlayback = loopPlayback;
+
+                SetPlaybackParameter("SetLoopPlayback", new object[] { playbackOptions.LoopPlayback });
+            }
         }
 
         private void button4_Click(object sender, EventArgs e)
@@ -624,7 +671,6 @@ namespace VlcTest
                 playbackService.Close();
             }
         }
-
 
 
     }

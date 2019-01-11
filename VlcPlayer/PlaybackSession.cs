@@ -67,7 +67,7 @@ namespace VlcPlayer
 
             private set
             {
-                if (!Object.ReferenceEquals(this.blurEffect, value))
+                if (!object.ReferenceEquals(this.blurEffect, value))
                 {
                     this.blurEffect = value;
                     this.OnPropertyChanged(nameof(BlurEffect));
@@ -251,4 +251,6 @@ namespace VlcPlayer
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
+
+
 }
