@@ -187,7 +187,7 @@ namespace VlcPlayer
         {
             PlaybackStats = null;
             Position = -1;
-            Volume = -1;
+           // Volume = -1;
             CurrentTime = TimeSpan.Zero;
             TotalTime = TimeSpan.Zero;
         }

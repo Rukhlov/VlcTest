@@ -103,7 +103,7 @@ namespace VlcTest
 
         private Thread playbackThread = null;
         private AutoResetEvent syncEvent = new AutoResetEvent(false);
-        private volatile bool closing = false;
+        private volatile bool closing = true;
 
         private CommandQueue commandQueue = new CommandQueue();
 
@@ -852,6 +852,27 @@ namespace VlcTest
             return this.playbackOptions;
         }
 
+        void IPlaybackService.SetPlaybackOptions(string option, object value)
+        {
+            if (string.IsNullOrEmpty(option) || value == null)
+            {
+                return;
+            }
+
+            //if(option == "Volume")
+            //{
+            //    playbackOptions.Volume = (int)value;
+
+            //}
+            //else if(option == "Mute")
+            //{
+            //    playbackOptions.IsMute = (bool)value;
+            //}
+            //else if(option == "BlurRadius")
+            //{
+            //    playbackOptions.BlurRadius = (int)value;
+            //}
+        }
 
         public void Close()
         {

@@ -11,10 +11,10 @@ namespace VlcContracts
 
     public class CommunicationConst
     {
-        public readonly static string PipeAddress = @"net.pipe://localhost/ICommunicationTest/Pipe";
+        public readonly static string PipeAddress = @"net.pipe://localhost/IPlaybackService/Pipe";
 
-        public readonly static string TcpLocalhostAddress = @"net.tcp://localhost/ICommunicationTest/tcp";
-        public readonly static string TcpAddress = @"net.tcp://192.168.10.158/ICommunicationTest/tcp";
+        public readonly static string TcpLocalhostAddress = @"net.tcp://localhost/IPlaybackService/tcp";
+        public readonly static string TcpAddress = @"net.tcp://192.168.10.158/IPlaybackService/tcp";
 
     }
 
@@ -61,6 +61,8 @@ namespace VlcContracts
     {
         [OperationContract]
         PlaybackOptions GetPlaybackOptions();
+
+        void SetPlaybackOptions(string option, object value);
     }
 
     public interface IPlaybackClient : ICommunicationCallback

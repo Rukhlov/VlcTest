@@ -59,6 +59,7 @@
             this.button6 = new System.Windows.Forms.Button();
             this.elementHost1 = new System.Windows.Forms.Integration.ElementHost();
             this.videoControl1 = new VlcTest.VideoControl();
+            this.labelVolume = new System.Windows.Forms.Label();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarPosition)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarVolume)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarBlur)).BeginInit();
@@ -197,20 +198,19 @@
             // trackBarBlur
             // 
             this.trackBarBlur.AutoSize = false;
-            this.trackBarBlur.Location = new System.Drawing.Point(738, 205);
+            this.trackBarBlur.Location = new System.Drawing.Point(740, 357);
             this.trackBarBlur.Maximum = 100;
             this.trackBarBlur.Name = "trackBarBlur";
             this.trackBarBlur.Orientation = System.Windows.Forms.Orientation.Vertical;
             this.trackBarBlur.Size = new System.Drawing.Size(20, 136);
             this.trackBarBlur.TabIndex = 21;
             this.trackBarBlur.TickFrequency = 10;
-
             this.trackBarBlur.ValueChanged += new System.EventHandler(this.trackBarBlur_ValueChanged);
             // 
             // label1
             // 
             this.label1.AutoEllipsis = true;
-            this.label1.Location = new System.Drawing.Point(735, 171);
+            this.label1.Location = new System.Drawing.Point(737, 323);
             this.label1.Name = "label1";
             this.label1.Size = new System.Drawing.Size(30, 19);
             this.label1.TabIndex = 22;
@@ -400,11 +400,21 @@
             this.elementHost1.Text = "elementHost1";
             this.elementHost1.Child = this.videoControl1;
             // 
+            // labelVolume
+            // 
+            this.labelVolume.AutoSize = true;
+            this.labelVolume.Location = new System.Drawing.Point(717, 171);
+            this.labelVolume.Name = "labelVolume";
+            this.labelVolume.Size = new System.Drawing.Size(13, 13);
+            this.labelVolume.TabIndex = 39;
+            this.labelVolume.Text = "--";
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(779, 558);
+            this.Controls.Add(this.labelVolume);
             this.Controls.Add(this.button6);
             this.Controls.Add(this.elementHost1);
             this.Controls.Add(this.button5);
@@ -482,6 +492,7 @@
         private System.Windows.Forms.Integration.ElementHost elementHost1;
         private VideoControl videoControl1;
         private System.Windows.Forms.Button button6;
+        private System.Windows.Forms.Label labelVolume;
     }
 }
 

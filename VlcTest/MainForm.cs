@@ -48,7 +48,7 @@ namespace VlcTest
             trackBarBlur.Value = playbackOptions.BlurRadius;
             checkBoxVideoAdjustments.Checked = playbackOptions.VideoAdjustmentsEnabled;
 
-
+            labelVolume.Text = playbackOptions.Volume.ToString();
 
         }
 
@@ -64,7 +64,7 @@ namespace VlcTest
         private PlaybackOptions playbackOptions = new PlaybackOptions
         {
             IsMute = false,
-            Volume = 90,
+            Volume = 80,
             BlurRadius=0,
             LoopPlayback = false,
             VideoAdjustmentsEnabled = false,
@@ -560,6 +560,7 @@ namespace VlcTest
 
             if (playbackOptions.Volume != vol)
             {
+                labelVolume.Text = vol.ToString();
                 playbackOptions.Volume = vol;
 
                 playbackService.SetVolume(playbackOptions.Volume);

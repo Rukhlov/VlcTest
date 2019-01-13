@@ -234,14 +234,13 @@ namespace VlcPlayer
                var options = communicationClient.Connect(new[] { eventId, memoId });
                 if (options != null)
                 {
-                    logger.Debug(options.Volume);
+                    //logger.Debug(options.Volume);
 
                     Session.Volume = options.Volume;
                     Session.IsMute = options.IsMute;
                     SetBlurRadius(options.BlurRadius);
                     loopPlayback = options.LoopPlayback;
-
-
+                    
                 }
             }
         }
@@ -281,7 +280,7 @@ namespace VlcPlayer
             player.Video.IsKeyInputEnabled = false;
             player.Video.IsMouseInputEnabled = false;
 
-            player.SetUserAgent("Mitsar Vlc Player", "Mitsar Vlc Player");
+            player.SetUserAgent("Mitsar Player", "Mitsar Player");
 
             return player;
 
@@ -504,6 +503,20 @@ namespace VlcPlayer
                 if (mediaPlayer != null)
                 {
                     currentPosition = mediaPlayer.Position;
+
+                    //var audio = mediaPlayer.Audio;
+                    //if (audio != null)
+                    //{
+                    //    if(audio.Volume != Session.Volume)
+                    //    {
+                    //        audio.Volume = Session.Volume;
+                    //    }
+                    //    if (audio.IsMute != Session.IsMute)
+                    //    {
+                    //        audio.IsMute = Session.IsMute;
+                    //    }
+                    //}
+
                 }
 
                 if (!float.IsNaN(currentPosition))
@@ -520,6 +533,9 @@ namespace VlcPlayer
                         InvokeEventAsync("Position", new object[] { Session.Position });
                     }
                 }
+
+
+
 
 
 
@@ -540,7 +556,7 @@ namespace VlcPlayer
                 return;
             }
 
-            logger.Debug("command " + command.command);
+            //logger.Debug("command " + command.command);
 
             switch (command.command)
             {
@@ -596,6 +612,10 @@ namespace VlcPlayer
                         logger.Info(mediaStr);
 
                         Session.Mrl = media.Mrl;
+
+                        //mediaPlayer.Audio.Volume = Session.Volume;
+                        //mediaPlayer.Audio.IsMute = Session.IsMute;
+
 
                         //Session.PlaybackStats = new PlaybackStatistics();
 
@@ -673,9 +693,12 @@ namespace VlcPlayer
                     break;
                 case "Position":
                     {
-                        if (Session.PlaybackState == PlaybackState.Playing || Session.PlaybackState == PlaybackState.Paused)
+                        if (Session.PlaybackState == PlaybackState.Playing ||
+                            Session.PlaybackState == PlaybackState.Paused)
                         {
                             SetPosition(command.args);
+
+
                         }
                     }
                     break;
@@ -704,12 +727,15 @@ namespace VlcPlayer
                     break;
                 case "Volume":
                     {
+
                         SetVolume(command.args);
+                        
                     }
                     break;
                 case "AudioVolume":
                     {
-                        Session.Volume = (int)mediaPlayer?.Audio?.Volume;
+
+                        //Session.Volume = (int)mediaPlayer?.Audio?.Volume;
 
                         //PostToClientAsync("AudioVolume", new object[] { Session.Volume });
                     }
@@ -821,6 +847,77 @@ namespace VlcPlayer
             }
         }
 
+        private void SetPlayerVolume(int volume)
+        {
+            if (mediaPlayer != null)
+            {
+                if (volume < 0)
+                {
+                    volume = 0;
+                }
+                if (volume > 100)
+                {
+                    volume = 100;
+                }
+
+                if (Session.PlaybackState == PlaybackState.Playing ||
+                        Session.PlaybackState == PlaybackState.Paused)
+                {
+                    var audio = mediaPlayer.Audio;
+                    if (audio != null)
+                    {
+                        if (audio.Volume != volume)
+                        {
+                            logger.Debug("SetPlayerVolume(...) " + volume + " " + audio.Volume);
+                            audio.Volume = volume;
+
+                        }
+                    }
+                }
+
+                Session.Volume = volume;
+            }
+        }
+
+        private void SetMute(object[] args)
+        {
+            var arg0 = "";
+            if (args?.Length > 0)
+            {
+                arg0 = args[0]?.ToString();
+            }
+            bool playing = (Session.PlaybackState == PlaybackState.Playing || Session.PlaybackState == PlaybackState.Paused);
+
+            if (!string.IsNullOrEmpty(arg0))
+            {
+                var mute = bool.Parse(arg0);
+                if (playing)
+                {
+                    var audio = mediaPlayer?.Audio;
+                    if (audio != null)
+                    {
+                        audio.IsMute = mute;
+                    }
+                }
+                else
+                {
+                    Session.IsMute = mute;
+                }
+            }
+            else
+            {
+                if (playing)
+                {
+                    mediaPlayer?.Audio?.ToggleMute();
+                }
+                else
+                {
+                    Session.IsMute = !Session.IsMute;
+                }
+            }
+
+        }
+
         private void SetPosition(object[] args)
         {
             var arg0 = "";
@@ -836,26 +933,25 @@ namespace VlcPlayer
             }
         }
 
-        private void SetMute(object[] args)
-        {
-            var arg0 = "";
-            if (args?.Length > 0)
-            {
-                arg0 = args[0]?.ToString();
-            }
 
-            if (!string.IsNullOrEmpty(arg0))
+        private void SetPlayerPosition(double pos)
+        {
+            if (mediaPlayer != null)
             {
-                var mute = bool.Parse(arg0);
-                var audio = mediaPlayer?.Audio;
-                if (audio != null)
+                if (pos < 0)
                 {
-                    audio.IsMute = mute;
+                    pos = 0;
                 }
-            }
-            else
-            {
-                mediaPlayer?.Audio?.ToggleMute();
+                if (pos > 1)
+                {
+                    pos = 1;
+                }
+
+                if (mediaPlayer.IsSeekable)
+                {
+                    //mediaPlayer.Position = (float)pos;
+                    mediaPlayer.Time = (long)(mediaPlayer.Length * pos);
+                }
             }
         }
 
@@ -982,11 +1078,13 @@ namespace VlcPlayer
         private void MediaPlayer_VideoOutChanged(object sender, VlcMediaPlayerVideoOutChangedEventArgs e)
         {
             logger.Debug(">>MediaPlayer_VideoOutChanged(...) " + e.NewCount);
+
         }
 
         private void MediaPlayer_AudioDevice(object sender, VlcMediaPlayerAudioDeviceEventArgs e)
         {
             logger.Debug(">>MediaPlayer_AudioDevice(...) " + e.Device);
+            
 
         }
 
@@ -1063,7 +1161,7 @@ namespace VlcPlayer
 
         private void MediaPlayer_AudioVolume(object sender, VlcMediaPlayerAudioVolumeEventArgs e)
         {
-            logger.Debug(">>MediaPlayer_AudioVolume(...) ");
+            logger.Debug(">>MediaPlayer_AudioVolume(...) " + mediaPlayer?.Audio?.Volume);
 
             EnqueueCommand("AudioVolume");
 
@@ -1178,7 +1276,7 @@ namespace VlcPlayer
             }
             else if (command == "Mute")
             {
-                MuteCommand.Execute(arg0);
+                MuteCommand.Execute(args);
                 // EnqueueCommand("Mute" , new[] { val0 });
             }
             else if (command == "Position")
@@ -1285,51 +1383,6 @@ namespace VlcPlayer
         }
 
 
-        private void SetPlayerVolume(int volume)
-        {
-            if (mediaPlayer != null)
-            {
-                if (volume < 0)
-                {
-                    volume = 0;
-                }
-                if (volume > 100)
-                {
-                    volume = 100;
-                }
-
-                var audio = mediaPlayer.Audio;
-                if (audio != null)
-                {
-                    if (audio.Volume != volume)
-                    {
-                        audio.Volume = volume;
-
-                    }
-                }
-            }
-        }
-
-        private void SetPlayerPosition(double pos)
-        {
-            if (mediaPlayer != null)
-            {
-                if (pos < 0)
-                {
-                    pos = 0;
-                }
-                if (pos > 1)
-                {
-                    pos = 1;
-                }
-
-                if (mediaPlayer.IsSeekable)
-                {
-                    //mediaPlayer.Position = (float)pos;
-                    mediaPlayer.Time = (long)(mediaPlayer.Length * pos);
-                }
-            }
-        }
 
         private void InvokeEventAsync(string command, object[] args = null)
         {
