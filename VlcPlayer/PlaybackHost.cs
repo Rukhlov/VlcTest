@@ -217,7 +217,7 @@ namespace VlcPlayer
             // var vlcopts = new string[] { "input-repeat=65535" };
             //var opts = new string[] { "--aout=\"waveout\"" };
 
-            var opts = new string[] { "--extraintf=logger", "--verbose=0", "--network-caching=1000" };
+            var opts = new string[] { "--extraintf=logger", "--verbose=0", "--network-caching=5000" };
             this.mediaPlayer = CreatePlayer(Program.VlcLibDirectory, opts);
 
             videoProvider.Setup();
