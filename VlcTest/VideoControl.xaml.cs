@@ -83,6 +83,25 @@ namespace VlcTest
             }
         }
 
+
+        private bool isBusy = false;
+        public bool IsBusy
+        {
+            get
+            {
+                return this.isBusy;
+            }
+
+            set
+            {
+                if (!ReferenceEquals(this.isBusy, value))
+                {
+                    this.isBusy = value;
+                    this.OnPropertyChanged(nameof(isBusy));
+                }
+            }
+        }
+
         public void Setup(string eventId, string memoryId)
         {
             Debug.WriteLine("VideoControl::Setup(...) " + eventId + " " + memoryId);
@@ -94,6 +113,7 @@ namespace VlcTest
                     Debug.WriteLine("task.Status == TaskStatus.Running");
 
                     this.Close();
+                    task.Wait();
                 }
             }
 
@@ -245,8 +265,11 @@ namespace VlcTest
         public void StartDisplay()
         {
             Debug.WriteLine("VideoControl::Play()");
+
+            //SetWait(true);
             playing = true;
             startupEvent?.Set();
+
         }
 
         public void StopDisplay()
@@ -256,6 +279,8 @@ namespace VlcTest
 
             rendering = false;
             displayEvent?.Set();
+
+
         }
 
         public void ClearDisplay()

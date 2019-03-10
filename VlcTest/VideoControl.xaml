@@ -6,8 +6,12 @@
              xmlns:local="clr-namespace:VlcTest"
              mc:Ignorable="d" 
              d:DesignHeight="450" d:DesignWidth="800">
+    <UserControl.Resources>
+        <BooleanToVisibilityConverter x:Key="BoolToVisibleConverter" />
+    </UserControl.Resources>
     <Grid Background="{DynamicResource {x:Static SystemColors.ActiveCaptionBrushKey}}">
         <Image x:Name="Video" Source="{Binding VideoSource}" OpacityMask="Black"  Margin="0,0,0,0" Effect="{Binding BlurEffect}" >
         </Image>
+        <local:WaitPanel x:Name="waitPanel" HorizontalAlignment="Center" Margin="0" VerticalAlignment="Center" Visibility="{Binding Path=IsBusy, Converter={StaticResource BoolToVisibleConverter}}" />
     </Grid>
 </UserControl>

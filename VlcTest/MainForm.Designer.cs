@@ -57,9 +57,10 @@
             this.button4 = new System.Windows.Forms.Button();
             this.button5 = new System.Windows.Forms.Button();
             this.button6 = new System.Windows.Forms.Button();
+            this.labelVolume = new System.Windows.Forms.Label();
+            this.speedComboBox = new System.Windows.Forms.ComboBox();
             this.elementHost1 = new System.Windows.Forms.Integration.ElementHost();
             this.videoControl1 = new VlcTest.VideoControl();
-            this.labelVolume = new System.Windows.Forms.Label();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarPosition)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarVolume)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarBlur)).BeginInit();
@@ -391,15 +392,6 @@
             this.button6.Text = "Start";
             this.button6.UseVisualStyleBackColor = true;
             // 
-            // elementHost1
-            // 
-            this.elementHost1.Location = new System.Drawing.Point(483, 243);
-            this.elementHost1.Name = "elementHost1";
-            this.elementHost1.Size = new System.Drawing.Size(228, 140);
-            this.elementHost1.TabIndex = 37;
-            this.elementHost1.Text = "elementHost1";
-            this.elementHost1.Child = this.videoControl1;
-            // 
             // labelVolume
             // 
             this.labelVolume.AutoSize = true;
@@ -409,11 +401,31 @@
             this.labelVolume.TabIndex = 39;
             this.labelVolume.Text = "--";
             // 
+            // speedComboBox
+            // 
+            this.speedComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.speedComboBox.FormattingEnabled = true;
+            this.speedComboBox.Location = new System.Drawing.Point(133, 442);
+            this.speedComboBox.Name = "speedComboBox";
+            this.speedComboBox.Size = new System.Drawing.Size(121, 21);
+            this.speedComboBox.TabIndex = 40;
+            this.speedComboBox.SelectedValueChanged += new System.EventHandler(this.speedComboBox_SelectedValueChanged);
+            // 
+            // elementHost1
+            // 
+            this.elementHost1.Location = new System.Drawing.Point(483, 243);
+            this.elementHost1.Name = "elementHost1";
+            this.elementHost1.Size = new System.Drawing.Size(228, 140);
+            this.elementHost1.TabIndex = 37;
+            this.elementHost1.Text = "elementHost1";
+            this.elementHost1.Child = this.videoControl1;
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(779, 558);
+            this.Controls.Add(this.speedComboBox);
             this.Controls.Add(this.labelVolume);
             this.Controls.Add(this.button6);
             this.Controls.Add(this.elementHost1);
@@ -493,6 +505,7 @@
         private VideoControl videoControl1;
         private System.Windows.Forms.Button button6;
         private System.Windows.Forms.Label labelVolume;
+        private System.Windows.Forms.ComboBox speedComboBox;
     }
 }
 

@@ -1,4 +1,5 @@
-﻿using NLog;
+﻿using Microsoft.Win32;
+using NLog;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -160,6 +161,34 @@ namespace VlcPlayer
         }
 
 
+        private ICommand openFileCommand = null;
+        public ICommand OpenFileCommand
+        {
+            get
+            {
+                if (openFileCommand == null)
+                {
+                    openFileCommand = new PlaybackCommand(p =>
+                    {
+                        OpenFileDialog ofd = new OpenFileDialog
+                        {
+                            CheckFileExists = true,
+                        };
+
+                        if ((bool)ofd.ShowDialog())
+                        {
+                            var fileName = ofd.FileName;
+                            EnqueueCommand("Play", new[] { fileName });
+                        }
+
+
+                    });
+                }
+                return openFileCommand;
+            }
+        }
+
+
         private ICommand muteCommand = null;
         public ICommand MuteCommand
         {
@@ -181,6 +210,39 @@ namespace VlcPlayer
             }
         }
 
+        private ICommand incrVolCommand = null;
+        public ICommand IncrVolCommand
+        {
+            get
+            {
+                if (incrVolCommand == null)
+                {
+                    incrVolCommand = new PlaybackCommand(p =>
+                    {
+                        EnqueueCommand("Volume", new object[] { 101 });
+                    });
+                }
+                return incrVolCommand;
+            }
+        }
+
+        private ICommand decrVolCommand = null;
+        public ICommand DecrVolCommand
+        {
+            get
+            {
+                if (decrVolCommand == null)
+                {
+                    decrVolCommand = new PlaybackCommand(p =>
+                    {
+                        EnqueueCommand("Volume", new object[] { -101 });
+                    });
+                }
+                return decrVolCommand;
+            }
+        }
+
+
         public void Setup()
         {
             try
@@ -192,7 +254,7 @@ namespace VlcPlayer
 
                 Session.PlaybackState = PlaybackState.Initializing;
 
-                //SetupPlayback();
+               // throw new Exception("Setup()");
 
                 playbackThread = new Thread(PlaybackProc);
                 playbackThread.IsBackground = true;
@@ -217,11 +279,13 @@ namespace VlcPlayer
             // var vlcopts = new string[] { "input-repeat=65535" };
             //var opts = new string[] { "--aout=\"waveout\"" };
 
+           // throw new Exception("CreatePlayback");
+
             var opts = new string[] { "--extraintf=logger", "--verbose=0", "--network-caching=5000" };
             this.mediaPlayer = CreatePlayer(Program.VlcLibDirectory, opts);
 
             videoProvider.Setup();
-            //audioProvider.Setup();
+            audioProvider.Setup();
 
             if (!string.IsNullOrEmpty(Session.RemoteAddr))
             {
@@ -231,7 +295,7 @@ namespace VlcPlayer
                 var eventId = videoProvider.eventId;
                 var memoId = videoProvider.memoryId;
 
-               var options = communicationClient.Connect(new[] { eventId, memoId });
+                var options = communicationClient.Connect(new[] { eventId, memoId });
                 if (options != null)
                 {
                     //logger.Debug(options.Volume);
@@ -240,7 +304,7 @@ namespace VlcPlayer
                     Session.IsMute = options.IsMute;
                     SetBlurRadius(options.BlurRadius);
                     loopPlayback = options.LoopPlayback;
-                    
+
                 }
             }
         }
@@ -387,11 +451,11 @@ namespace VlcPlayer
         }
 
 
-        public event Action<object> Closed;
-        private void OnClosed(object obj)
+        public event Action<object, Exception> Closed;
+        private void OnClosed(object obj, Exception ex = null)
         {
             logger.Debug("OnClosed(...)");
-            Closed?.Invoke(obj);
+            Closed?.Invoke(obj, ex);
         }
 
         private int openingTimeout = 10000;
@@ -400,6 +464,7 @@ namespace VlcPlayer
         {
             logger.Trace("PlaybackProc() BEGIN");
 
+            Exception _ex = null;
             try
             {
                 CreatePlayback();
@@ -459,10 +524,16 @@ namespace VlcPlayer
             catch (Exception ex)
             {
                 logger.Error(ex);
+                _ex = ex;
+
+               // Environment.Exit(-100500);
+
+                //throw;
             }
             finally
             {
                 CleanUp();
+                OnClosed(dispatcher, _ex);
             }
 
             logger.Trace("PlaybackProc() END");
@@ -482,6 +553,7 @@ namespace VlcPlayer
                 var media = mediaPlayer?.GetMedia();
                 if (media != null)
                 {
+
                     var stats = media.Statistics;
 
                     var playbackStats = Session?.PlaybackStats;
@@ -544,7 +616,7 @@ namespace VlcPlayer
 
         private void ProcessPlaybackCommand(InternalCommand command)
         {
-           // logger.Debug("ProcessInternalCommand(...)");
+            // logger.Debug("ProcessInternalCommand(...)");
 
             if (closing)
             {
@@ -729,7 +801,17 @@ namespace VlcPlayer
                     {
 
                         SetVolume(command.args);
-                        
+
+                    }
+                    break;
+                case "NextFrame":
+                    {
+                        mediaPlayer.NextFrame();
+                    }
+                    break;
+                case "SetRate":
+                    {
+                        SetRate(command.args);
                     }
                     break;
                 case "AudioVolume":
@@ -851,11 +933,20 @@ namespace VlcPlayer
         {
             if (mediaPlayer != null)
             {
-                if (volume < 0)
+                int incr = 0;
+                if (volume == -101)
+                {
+                    incr = -1;
+                }
+                else if (volume == 101)
+                {
+                    incr = 1;
+                }
+                else if (volume < 0)
                 {
                     volume = 0;
                 }
-                if (volume > 100)
+                else if (volume > 100)
                 {
                     volume = 100;
                 }
@@ -866,12 +957,22 @@ namespace VlcPlayer
                     var audio = mediaPlayer.Audio;
                     if (audio != null)
                     {
-                        if (audio.Volume != volume)
+                        if (incr == 0)
                         {
-                            logger.Debug("SetPlayerVolume(...) " + volume + " " + audio.Volume);
-                            audio.Volume = volume;
+                            if (audio.Volume != volume)
+                            {
+                                logger.Debug("SetPlayerVolume(...) " + volume + " " + audio.Volume);
+                                audio.Volume = volume;
+
+                            }
+                        }
+                        else
+                        {
+                            logger.Debug("SetPlayerVolume(...) " + volume + " " + incr);
+                            audio.Volume += incr;
 
                         }
+                        volume = audio.Volume;
                     }
                 }
 
@@ -916,6 +1017,26 @@ namespace VlcPlayer
                 }
             }
 
+        }
+
+        private void SetRate(object[] args)
+        {
+            var arg0 = "";
+            if (args?.Length > 0)
+            {
+                arg0 = args[0]?.ToString();
+            }
+
+            float rate = 0;
+            if (float.TryParse(arg0, out rate))
+            {
+                logger.Debug("SetRate() " + rate);
+
+                if (rate > 0 && rate <= 8)
+                {
+                    mediaPlayer.Rate = rate;
+                }
+            }
         }
 
         private void SetPosition(object[] args)
@@ -1084,7 +1205,7 @@ namespace VlcPlayer
         private void MediaPlayer_AudioDevice(object sender, VlcMediaPlayerAudioDeviceEventArgs e)
         {
             logger.Debug(">>MediaPlayer_AudioDevice(...) " + e.Device);
-            
+
 
         }
 
@@ -1196,7 +1317,7 @@ namespace VlcPlayer
                 }
                 finally
                 {
-                    OnClosed(dispatcher);
+                    //OnClosed(dispatcher);
                 }
             });
 
@@ -1290,6 +1411,10 @@ namespace VlcPlayer
             else if (command == "SetAdjustments")
             {
                 EnqueueCommand("SetAdjustments", args);
+            }
+            else if (command == "SetRate")
+            {
+                EnqueueCommand("SetRate", args);
             }
             else if (command == "Blur")
             {
@@ -1396,7 +1521,7 @@ namespace VlcPlayer
             communicationClient?.OnPostMessage(command, args);
         }
 
-        private void SetupVideo( IntPtr handle, int width, int height, PixelFormat fmt, int pitches, int offset)
+        private void SetupVideo(IntPtr handle, int width, int height, PixelFormat fmt, int pitches, int offset)
         {
             this.dispatcher.Invoke(() =>
             {
@@ -1479,11 +1604,11 @@ namespace VlcPlayer
             {
                 logger.Debug("VlcVideoProvider::Setup(...)");
 
-  
+
                 var player = playback.mediaPlayer;
                 if (player != null)
                 {
-                    var handle =(IntPtr)Program.CommandLineOptions.WindowHandle;
+                    var handle = (IntPtr)Program.CommandLineOptions.WindowHandle;
                     if (handle != IntPtr.Zero)
                     {
                         player.VideoHostControlHandle = handle;
@@ -1494,8 +1619,8 @@ namespace VlcPlayer
                     else
                     {
                         memoryId = Guid.NewGuid().ToString("N");
-                        this.memoryMappedFile = MemoryMappedFile.CreateNew(memoryId, 30 *1024* 1024, MemoryMappedFileAccess.ReadWrite);
-                        
+                        this.memoryMappedFile = MemoryMappedFile.CreateNew(memoryId, 30 * 1024 * 1024, MemoryMappedFileAccess.ReadWrite);
+
                         eventId = Guid.NewGuid().ToString("N");
                         this.eventWaitHandle = CreateEventWaitHandle(eventId);
 
@@ -1521,7 +1646,7 @@ namespace VlcPlayer
             /// <param name="lines">The buffer height</param>
             /// <returns>The number of buffers allocated</returns>
             private unsafe uint VideoFormat(out IntPtr userdata, IntPtr chroma, ref uint width, ref uint height, ref uint pitches, ref uint lines)
-            {  
+            {
                 logger.Debug("VlcVideoProvider::VideoFormat(...) " + eventId + " chroma " + chroma + " width " + width + " height " + height + " pitches " + pitches + " lines " + lines);
 
                 PixelFormat pixelFormat = isAlphaChannelEnabled ? PixelFormats.Bgra32 : PixelFormats.Bgr32;
@@ -1534,7 +1659,7 @@ namespace VlcPlayer
 
                 //var size = pitches * lines;
 
-              
+
                 int headerSize = 1024;//args.Length * sizeof(int);
                 long dataSize = pitches * lines;
                 var size = headerSize + dataSize;

@@ -50,13 +50,39 @@ namespace VlcTest
 
             labelVolume.Text = playbackOptions.Volume.ToString();
 
-        }
+            CreateVideoForm(false);
 
+
+
+            speedComboBox.Items.Add(new ComboboxItem { Text = "x0.125", Value = 0.125f });
+            speedComboBox.Items.Add(new ComboboxItem{Text = "x0.25" ,Value = 0.25f });
+            speedComboBox.Items.Add(new ComboboxItem{Text = "x0.5" ,Value = 0.5f });
+            speedComboBox.Items.Add(new ComboboxItem{Text = "x1" ,Value = 1 });
+            speedComboBox.Items.Add(new ComboboxItem{Text = "x2" ,Value = 2 });
+            speedComboBox.Items.Add(new ComboboxItem{Text = "x4" ,Value = 4 });
+            speedComboBox.Items.Add(new ComboboxItem{Text = "x8" ,Value = 8 });
+            speedComboBox.SelectedIndex = 3;
+
+            //videoControl = new VideoControl();
+
+            //videoForm.InitVideoControl(videoControl);
+
+        }
+        public class ComboboxItem
+        {
+            public string Text { get; set; }
+            public float Value { get; set; }
+
+            public override string ToString()
+            {
+                return Text;
+            }
+        }
 
         private VideoForm videoForm = null;
 
         private Timer timer = new Timer();
-        internal VideoControl videoControl = new VideoControl();
+        internal VideoControl videoControl = null;
 
         private PlaybackSession playbackSession = null;
         private static PlaybackService _playbackService = null;
@@ -150,6 +176,7 @@ namespace VlcTest
         {
             logger.Debug("playbackService_PlaybackStartDisplay(...)");
 
+            //videoControl.SetWait(true);
             videoControl.StartDisplay();
         }
 
@@ -171,6 +198,8 @@ namespace VlcTest
             var memoryId = playbackSession.MemoryBufferId;
 
             CreateVideoControl(eventId, memoryId);
+
+
         }
 
         private void playbackService_StateChanged(ServiceState newState, ServiceState oldState)
@@ -196,12 +225,16 @@ namespace VlcTest
         {
             if(state == PlaybackState.Opening)
             {
-
+                logger.Debug("videoControl.SetWait(true)");
+                videoControl.IsBusy = true;
             }
             else if( state == PlaybackState.Playing)
             {
 
                 UpdateUi();
+                logger.Debug("videoControl.SetWait(false)");
+                videoControl.IsBusy = false;
+                // videoControl.SetWait(false);
             }
             else if (state == PlaybackState.Paused)
             {
@@ -282,12 +315,16 @@ namespace VlcTest
             {
                 //CreateVideoForm();
 
-                videoControl = new VideoControl();
+                // videoControl = new VideoControl();
+
+                videoControl.IsBusy = true;
+
+                //videoControl.SetWait(true);
 
                 videoControl.Setup(appId, memoryId);
                 videoControl.BlurEffect.Radius = playbackOptions.BlurRadius;
 
-                videoForm.InitVideoControl(videoControl);
+                //videoForm.InitVideoControl(videoControl);
 
                 if (!videoForm.Visible)
                 {
@@ -298,12 +335,19 @@ namespace VlcTest
 
         }
 
-        private void CreateVideoForm()
+        private void CreateVideoForm(bool visible = true)
         {
             if (videoForm == null || videoForm.IsDisposed || videoForm.Disposing)
             {
 
                 videoForm = new VideoForm();
+
+
+                videoControl = new VideoControl();
+                videoControl.IsBusy = true;
+
+                //videoControl.SetWait(true);
+                videoForm.InitVideoControl(videoControl);
 
                 //videoForm.InitVideoControl(videoControl);
 
@@ -315,7 +359,7 @@ namespace VlcTest
 
                    
                 };
-                videoForm.Visible = true;
+                videoForm.Visible = visible;
                 //videoForm.FormClosed += (o, a) =>
                 //{
                 //    PostMessage("Stop");
@@ -324,7 +368,7 @@ namespace VlcTest
 
             if (!videoForm.Visible)
             {
-                videoForm.Visible = true;
+                videoForm.Visible = visible;
             }
 
             //videoControl.Clear();
@@ -674,6 +718,20 @@ namespace VlcTest
         }
 
 
+        private void speedComboBox_SelectedValueChanged(object sender, EventArgs e)
+        {
+            var obj = speedComboBox.SelectedItem;
+            if (obj != null)
+            {
+                var item = obj as ComboboxItem;
+                if (item != null)
+                {
+                    var rate = (float)item.Value;
+
+                    playbackService.SetRate(rate);
+                }
+            }
+        }
     }
 
 

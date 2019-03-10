@@ -97,9 +97,14 @@ namespace VlcPlayer
                 }
 
                 playback = new PlaybackHost();
-                playback.Closed += (obj) =>
+                playback.Closed += (obj, ex) =>
                 {
                     logger.Debug("playback.Closed(...)");
+
+                    if (ex != null)
+                    {
+
+                    }
 
                     System.Windows.Threading.Dispatcher dispatcher = null;
                     if (obj != null)
@@ -123,6 +128,10 @@ namespace VlcPlayer
                 dispatching = true;
                 System.Windows.Threading.Dispatcher.Run();
 
+            }
+            catch(Exception ex)
+            {
+                logger.Fatal(ex);
             }
             finally
             {

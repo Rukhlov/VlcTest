@@ -19,6 +19,9 @@
         <KeyBinding Command="{Binding StopCommand}" Key="S"/>
         <KeyBinding Command="{Binding QuitCommand}" Key="Q"/>
         <KeyBinding Command="{Binding MuteCommand}" Key="M"/>
+        <KeyBinding Command="{Binding OpenFileCommand}" Key="O"/>
+        <KeyBinding Command="{Binding IncrVolCommand}" Key="Add"  />
+        <KeyBinding Command="{Binding DecrVolCommand}" Key="Subtract"/>
     </Window.InputBindings>
 
     <Window.Resources>

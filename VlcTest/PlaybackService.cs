@@ -524,6 +524,12 @@ namespace VlcTest
             EnqueueCommand("Playback_RunCommand", new object[] { "Volume", new object[] { volume } });
         }
 
+        public void SetRate(float rate)
+        {
+            logger.Debug("SetRate() " + rate);
+
+            EnqueueCommand("Playback_RunCommand", new object[] { "SetRate", new object[] { rate } });
+        }
 
         public void Pause()
         {
