@@ -645,6 +645,7 @@ namespace VlcTest
 
             if (!closing)
             {
+                StatusCode = 0;
                 result = playbackProcess.Start();
                 //Thread.Sleep(50000);
 
@@ -654,6 +655,8 @@ namespace VlcTest
             return result;
         }
 
+        public int StatusCode { get; private set; }
+
         private void PlaybackProcess_Exited(object sender, EventArgs e)
         {
             logger.Debug("PlaybackProcess_Exited(...)");
@@ -661,8 +664,8 @@ namespace VlcTest
             Process p = sender as Process;
             if (p != null)
             {
-                int code = p.ExitCode;
-                logger.Debug("Client process exited with code: " + code);
+                StatusCode = p.ExitCode;
+                logger.Debug("Client process exited with code: " + StatusCode);
                 p.Dispose();
 
                 Close();

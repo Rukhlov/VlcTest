@@ -16,8 +16,9 @@ namespace VlcPlayer
         private static Logger logger = null;//LogManager.GetCurrentClassLogger();
 
         [STAThread]
-        public static void Main(string[] args)
+        public static int Main(string[] args)
         {
+            int exitCode = 0;
             try
             {
                 logger = LogManager.GetCurrentClassLogger();
@@ -29,8 +30,8 @@ namespace VlcPlayer
 
                 logger.Info("========== START ============");
 
-                bool dispatching = false;
-                PlaybackHost playback = null;
+
+                PlaybackHost playback = new PlaybackHost();
 
                 AppDomain.CurrentDomain.UnhandledException += (o, a) =>
                 {
@@ -44,93 +45,55 @@ namespace VlcPlayer
                         {
                             logger.Fatal(ex);
 
-                            //if (a.IsTerminating)
-                            //{
-                            //    Environment.FailFast(ex.Message, ex);
-                            //}
-                            //else
-                            //{
-                            //    playback?.Close();
-                            //}
-
                             int code = ProcessException(ex);
-                            Environment.Exit(code);
+
+                            Quit(playback, code);
 
                         }
                     }
 
                 };
 
+                
                 CommandLineOptions = ParseCommandLine(args);
-                if(CommandLineOptions == null)
+                if (CommandLineOptions == null)
                 {
                     CommandLineOptions = new CommandLineOptions();
                 }
 
                 var parentId = CommandLineOptions.ParentId;
                 if (parentId > 0)
-                {
+                {                  
                     ParentProcess = Process.GetProcessById(parentId);
-                    if (ParentProcess != null)
+                    if (ParentProcess != null && !ParentProcess.HasExited)
                     {
+
                         ParentProcess.EnableRaisingEvents = true;
                         ParentProcess.Exited += (o, a) =>
                         {
                             logger.Warn("Parent process exited...");
-                            try
-                            {
-                                if (dispatching)
-                                {
-                                    playback.Close();
-                                }
-                                else
-                                {
-                                    Environment.Exit(-1);
-                                }                             
-                            }
-                            catch (Exception ex)
-                            {
-                                logger.Error(ex);
-                            }
+                            Quit(playback, -1);
+
                         };
+                    }
+                    else
+                    {
+                        //return -100502;
                     }
                 }
 
-                playback = new PlaybackHost();
-                playback.Closed += (obj, ex) =>
-                {
-                    logger.Debug("playback.Closed(...)");
+                PlaybackSession session = new PlaybackSession(CommandLineOptions);
 
-                    if (ex != null)
-                    {
+                playback.Start(session);
 
-                    }
 
-                    System.Windows.Threading.Dispatcher dispatcher = null;
-                    if (obj != null)
-                    {
-                        dispatcher = obj as System.Windows.Threading.Dispatcher;
-                        if (dispatcher != null)
-                        {
-                            dispatcher.InvokeShutdown();
-                            //dispatcher.BeginInvokeShutdown(System.Windows.Threading.DispatcherPriority.Normal);
-                        }
-                    }
-
-                    if(dispatcher == null)
-                    {
-                        Environment.Exit(-2);
-                    }
-                };
-
-                playback.Setup();
-               
-                dispatching = true;
+                logger.Info("============ RUN ===============");
                 System.Windows.Threading.Dispatcher.Run();
 
             }
-            catch(Exception ex)
+            catch (Exception ex)
             {
+                exitCode = -100500;
                 logger.Fatal(ex);
             }
             finally
@@ -138,6 +101,8 @@ namespace VlcPlayer
                 VlcContracts.NativeMethods.FreeConsole();
                 logger.Info("========== THE END ============");
             }
+
+            return exitCode;
         }
 
         private static CommandLineOptions ParseCommandLine(string[] args)
@@ -152,7 +117,7 @@ namespace VlcPlayer
                 bool res = Parser.Default.ParseArguments(args, options);
                 if (!res)
                 {
-                   // options = null;
+                    // options = null;
                 }
             }
             return options;
@@ -182,7 +147,26 @@ namespace VlcPlayer
             return code;
         }
 
+        private static void Quit(PlaybackHost host, int code)
+        {
+            try
+            {
+                if (host != null)
+                {
+                    host.Close();
+                }
+                else
+                {
+                    Environment.Exit(code);
+                }
+            }
+            catch (Exception ex)
+            {
+                logger.Fatal(ex);
 
+                Process.GetCurrentProcess().Kill();
+            }
+        }
 
         public static readonly string CurrentDirectory = new System.IO.FileInfo(System.Reflection.Assembly.GetEntryAssembly().Location).DirectoryName;
         public static readonly System.IO.DirectoryInfo VlcLibDirectory = new System.IO.DirectoryInfo(System.IO.Path.Combine(Program.CurrentDirectory, "libvlc", IntPtr.Size == 4 ? "win-x86" : "win-x64"));

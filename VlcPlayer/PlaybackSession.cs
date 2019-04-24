@@ -13,15 +13,17 @@ namespace VlcPlayer
     {
         public PlaybackSession()
         {
-
+            this.PlaybackState = PlaybackState.Created;
         }
 
-        public PlaybackSession(CommandLineOptions options)
+        public PlaybackSession(CommandLineOptions options) : this()
         {
             if (options != null)
             {
                 this.MediaAddr = options.FileName;
                 this.RemoteAddr = options.ServerAddr;
+                this.ParentId = options.ParentId;
+                this.WindowHandle = options.WindowHandle;
             }
         }
 
@@ -77,6 +79,8 @@ namespace VlcPlayer
 
 
         private string remoteAddr = "";
+
+        [CommandLine.Option("channel")]
         public string RemoteAddr
         {
             get { return remoteAddr; }
@@ -108,8 +112,10 @@ namespace VlcPlayer
                 OnPropertyChanged(nameof(Volume));
             }
         }
-        
+
         private string mediaAddr = "";
+
+        [CommandLine.Option("media")]
         public string MediaAddr
         {
             get { return mediaAddr; }
@@ -187,10 +193,25 @@ namespace VlcPlayer
         {
             PlaybackStats = null;
             Position = -1;
-           // Volume = -1;
+            // Volume = -1;
             CurrentTime = TimeSpan.Zero;
             TotalTime = TimeSpan.Zero;
         }
+
+
+        [CommandLine.Option("parentid")]
+        public int ParentId { get; set; }
+
+        [CommandLine.Option("eventid")]
+        public string SyncEventId { get; set; }
+
+        [CommandLine.Option("vlcopts")]
+        public string VlcOptions { get; set; }
+
+        [CommandLine.Option("hwnd")]
+        public int WindowHandle { get; set; }
+
+
     }
 
     public class MediaResource

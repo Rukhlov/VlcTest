@@ -80,6 +80,7 @@
     <Compile Include="VideoControl.xaml.cs">
       <DependentUpon>VideoControl.xaml</DependentUpon>
     </Compile>
+    <Compile Include="VideoSourceProvider.cs" />
     <Compile Include="WaitPanel.xaml.cs">
       <DependentUpon>WaitPanel.xaml</DependentUpon>
     </Compile>

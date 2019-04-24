@@ -18,9 +18,9 @@ namespace VlcTest
             InitializeComponent();
         }
 
-        internal void InitVideoControl(VideoControl vc)
+        internal void SetUp(VideoControl vc)
         {
-            this.elementHost1.Child = vc;
+            this.elementHost.Child = vc;
         }
 
     }

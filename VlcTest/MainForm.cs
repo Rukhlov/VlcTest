@@ -55,12 +55,12 @@ namespace VlcTest
 
 
             speedComboBox.Items.Add(new ComboboxItem { Text = "x0.125", Value = 0.125f });
-            speedComboBox.Items.Add(new ComboboxItem{Text = "x0.25" ,Value = 0.25f });
-            speedComboBox.Items.Add(new ComboboxItem{Text = "x0.5" ,Value = 0.5f });
-            speedComboBox.Items.Add(new ComboboxItem{Text = "x1" ,Value = 1 });
-            speedComboBox.Items.Add(new ComboboxItem{Text = "x2" ,Value = 2 });
-            speedComboBox.Items.Add(new ComboboxItem{Text = "x4" ,Value = 4 });
-            speedComboBox.Items.Add(new ComboboxItem{Text = "x8" ,Value = 8 });
+            speedComboBox.Items.Add(new ComboboxItem { Text = "x0.25", Value = 0.25f });
+            speedComboBox.Items.Add(new ComboboxItem { Text = "x0.5", Value = 0.5f });
+            speedComboBox.Items.Add(new ComboboxItem { Text = "x1", Value = 1 });
+            speedComboBox.Items.Add(new ComboboxItem { Text = "x2", Value = 2 });
+            speedComboBox.Items.Add(new ComboboxItem { Text = "x4", Value = 4 });
+            speedComboBox.Items.Add(new ComboboxItem { Text = "x8", Value = 8 });
             speedComboBox.SelectedIndex = 3;
 
             //videoControl = new VideoControl();
@@ -82,7 +82,8 @@ namespace VlcTest
         private VideoForm videoForm = null;
 
         private Timer timer = new Timer();
-        internal VideoControl videoControl = null;
+
+        private VideoSourceProvider videoProvider = null;
 
         private PlaybackSession playbackSession = null;
         private static PlaybackService _playbackService = null;
@@ -91,7 +92,7 @@ namespace VlcTest
         {
             IsMute = false,
             Volume = 80,
-            BlurRadius=0,
+            BlurRadius = 0,
             LoopPlayback = false,
             VideoAdjustmentsEnabled = false,
             VideoContrast = 100,
@@ -101,10 +102,10 @@ namespace VlcTest
         {
             get
             {
-                if(_playbackService == null)
+                if (_playbackService == null)
                 {
                     _playbackService = new PlaybackService(playbackOptions);
-  
+
                     _playbackService.StateChanged += playbackService_StateChanged;
                     _playbackService.Opened += playbackService_Opened;
                     _playbackService.ReadyToPlay += playbackService_ReadyToPlay;
@@ -122,10 +123,40 @@ namespace VlcTest
         }
 
 
+        private void CreateVideoForm(bool visible = true)
+        {
+            if (videoForm == null || videoForm.IsDisposed || videoForm.Disposing)
+            {
+
+                videoForm = new VideoForm();
+                videoForm.FormClosing += VideoForm_FormClosing;
+
+                if (videoProvider == null)
+                {
+                    videoProvider = new VideoSourceProvider();
+                }
+
+                videoForm.SetUp(new VideoControl
+                {
+                    DataContext = videoProvider
+                });
+
+                videoForm.Visible = visible;
+            }
+
+        }
+
+        private void VideoForm_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            e.Cancel = true;
+
+            videoForm.Visible = false;
+            playbackService?.Stop();
+        }
 
         private void playbackService_PlaybackPositionChanged(float position)
         {
-           // if (mediaPosition != position)
+            // if (mediaPosition != position)
             {
                 mediaPosition = position;
                 long currTime = (long)(totalMediaLength * mediaPosition);
@@ -139,11 +170,11 @@ namespace VlcTest
                         labelCurrentTime.Text = ts.ToString("hh\\:mm\\:ss");
 
                         var pos = (int)(mediaPosition * trackBarPosition.Maximum);
-                        if(pos > trackBarPosition.Maximum)
+                        if (pos > trackBarPosition.Maximum)
                         {
                             pos = trackBarPosition.Maximum;
                         }
-                        else if(pos< trackBarPosition.Minimum)
+                        else if (pos < trackBarPosition.Minimum)
                         {
                             pos = trackBarPosition.Minimum;
                         }
@@ -159,7 +190,7 @@ namespace VlcTest
 
         private void playbackService_PlaybackLengthChanged(long len)
         {
-         //   if (totalMediaLength != len)
+            //   if (totalMediaLength != len)
             {
                 totalMediaLength = len;
                 TimeSpan ts = TimeSpan.FromMilliseconds(totalMediaLength);
@@ -177,14 +208,15 @@ namespace VlcTest
             logger.Debug("playbackService_PlaybackStartDisplay(...)");
 
             //videoControl.SetWait(true);
-            videoControl.StartDisplay();
+
+            videoProvider.StartDisplay();
         }
 
         private void playbackService_PlaybackStopDisplay()
         {
             logger.Debug("playbackService_PlaybackStopDisplay(...)");
 
-            videoControl.StopDisplay();
+            videoProvider.StopDisplay();
         }
 
         private void playbackService_Opened(object arg1, object[] arg2)
@@ -194,17 +226,27 @@ namespace VlcTest
 
         private void playbackService_ReadyToPlay(object arg1, object[] arg2)
         {
+            videoProvider.IsBusy = true;
+
             var eventId = playbackSession.EventSyncId;
             var memoryId = playbackSession.MemoryBufferId;
 
-            CreateVideoControl(eventId, memoryId);
+            videoProvider.Setup(eventId, memoryId);
 
+            this.Invoke((Action)(() =>
+            {
+                videoProvider.BlurEffect.Radius = playbackOptions.BlurRadius;
+                if (!videoForm.Visible)
+                {
+                    videoForm.Visible = true;
+                }
+            }));
 
         }
 
         private void playbackService_StateChanged(ServiceState newState, ServiceState oldState)
         {
-            if(newState == ServiceState.Opened)
+            if (newState == ServiceState.Opened)
             {
                 if (playbackSession != null)
                 {
@@ -212,10 +254,10 @@ namespace VlcTest
                 }
 
                 playbackSession = playbackService.Session;
-               
+
                 playbackSession.StateChanged += PlaybackSession_StateChanged;
             }
-            else if(newState == ServiceState.Closed)
+            else if (newState == ServiceState.Closed)
             {
                 //...
             }
@@ -223,27 +265,35 @@ namespace VlcTest
 
         private void PlaybackSession_StateChanged(PlaybackState state, PlaybackState old)
         {
-            if(state == PlaybackState.Opening)
+            if (state == PlaybackState.Opening)
             {
-                logger.Debug("videoControl.SetWait(true)");
-                videoControl.IsBusy = true;
-            }
-            else if( state == PlaybackState.Playing)
-            {
+                logger.Debug("PlaybackSession_StateChanged(...) " + state);
 
+                videoProvider.Banner = "";
+                videoProvider.IsBusy = true;
+            }
+            else if (state == PlaybackState.Playing)
+            {
+                logger.Debug("PlaybackSession_StateChanged(...) " + state);
                 UpdateUi();
-                logger.Debug("videoControl.SetWait(false)");
-                videoControl.IsBusy = false;
-                // videoControl.SetWait(false);
+
+                videoProvider.IsBusy = false;
+                videoProvider.Banner = "";
+
             }
             else if (state == PlaybackState.Paused)
             {
+                logger.Debug("PlaybackSession_StateChanged(...) " + state);
+                videoProvider.IsBusy = false;
+
                 UpdateUi();
             }
             else if (state == PlaybackState.Stopped)
             {
                 logger.Debug("PlaybackSession_StateChanged(...) " + state);
-                videoControl.ClearDisplay();
+                videoProvider.IsBusy = true;
+                videoProvider.ClearDisplay();
+
                 UpdateUi();
             }
             else
@@ -256,8 +306,22 @@ namespace VlcTest
         private void playbackService_Closed(object arg1, object[] arg2)
         {
             logger.Debug("playbackService_Closed(...)");
+            var exitCode = 0;
+            if (playbackService != null)
+            {
+                exitCode = playbackService.StatusCode;
+                if (exitCode != 0)
+                {
+                    videoProvider.Banner = "ErrorCode: " + exitCode;
 
-            videoControl.ClearDisplay();
+                }
+                else
+                {
+                    videoProvider.Banner = "";
+                }
+            }
+
+            videoProvider.ClearDisplay();
             UpdateUi();
         }
 
@@ -296,87 +360,9 @@ namespace VlcTest
             }
         }
 
-        public void SetupVideoForm()
-        {
-            this.Invoke((Action)(() =>
-            {
-                //CreateVideoForm();
-
-                videoForm.Visible = true;
 
 
-            }));
-
-        }
-
-        public void CreateVideoControl(string appId, string memoryId)
-        {
-            this.Invoke((Action)(() =>
-            {
-                //CreateVideoForm();
-
-                // videoControl = new VideoControl();
-
-                videoControl.IsBusy = true;
-
-                //videoControl.SetWait(true);
-
-                videoControl.Setup(appId, memoryId);
-                videoControl.BlurEffect.Radius = playbackOptions.BlurRadius;
-
-                //videoForm.InitVideoControl(videoControl);
-
-                if (!videoForm.Visible)
-                {
-                    videoForm.Visible = true;
-                }
-
-            }));
-
-        }
-
-        private void CreateVideoForm(bool visible = true)
-        {
-            if (videoForm == null || videoForm.IsDisposed || videoForm.Disposing)
-            {
-
-                videoForm = new VideoForm();
-
-
-                videoControl = new VideoControl();
-                videoControl.IsBusy = true;
-
-                //videoControl.SetWait(true);
-                videoForm.InitVideoControl(videoControl);
-
-                //videoForm.InitVideoControl(videoControl);
-
-                videoForm.FormClosing += (o, a) =>
-                {
-                    a.Cancel = true;
-                    videoForm.Visible = false;
-                    playbackService.Stop();
-
-                   
-                };
-                videoForm.Visible = visible;
-                //videoForm.FormClosed += (o, a) =>
-                //{
-                //    PostMessage("Stop");
-                //};
-            }
-
-            if (!videoForm.Visible)
-            {
-                videoForm.Visible = visible;
-            }
-
-            //videoControl.Clear();
-        }
-
-
-
-       // private static Process CurrentProccess = Process.GetCurrentProcess();
+        // private static Process CurrentProccess = Process.GetCurrentProcess();
 
         private void buttonStart_Click(object sender, EventArgs e)
         {
@@ -400,6 +386,7 @@ namespace VlcTest
 
             playbackService.Close();
 
+            // videoProvider.Close();
 
         }
 
@@ -444,14 +431,20 @@ namespace VlcTest
         {
             Debug.WriteLine("PlayFile(...)");
 
-            CreateVideoForm();
+
+            videoProvider.IsBusy = true;
+
+            if (!videoForm.Visible)
+            {
+                videoForm.Visible = true;
+            }
 
             playbackService.Play(uri, forse);
 
         }
 
 
- 
+
         private void buttonPause_Click(object sender, EventArgs e)
         {
             Debug.WriteLine(">>>>>>>>>>>>>>>>>>>>>>>> buttonPause_Click(...)");
@@ -466,7 +459,7 @@ namespace VlcTest
 
             playbackService.Stop();
 
-         }
+        }
 
         private string currentMediaFile = "";
         private void buttonOpenFile_Click(object sender, EventArgs e)
@@ -538,7 +531,7 @@ namespace VlcTest
 
             playbackService.SetPosition(position);
 
-           // SetPlaybackParameter("Position", new object[] { position });
+            // SetPlaybackParameter("Position", new object[] { position });
         }
 
         internal long totalMediaLength = 0;
@@ -597,7 +590,7 @@ namespace VlcTest
 
         private void trackBarVolume_ValueChanged(object sender, EventArgs e)
         {
-           
+
             var vol = (int)trackBarVolume.Value;
 
             Debug.WriteLine("trackBarVolume_ValueChanged(...) " + playbackOptions.Volume + " " + vol);
@@ -620,7 +613,7 @@ namespace VlcTest
             {
                 playbackOptions.BlurRadius = blurRadius;
 
-                var effect = videoControl?.BlurEffect;
+                var effect = videoProvider?.BlurEffect;
                 if (effect != null)
                 {
                     effect.Radius = (double)playbackOptions.BlurRadius; //(double)blurRadius;

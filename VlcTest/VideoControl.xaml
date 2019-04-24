@@ -4,14 +4,22 @@
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008" 
              xmlns:local="clr-namespace:VlcTest"
-             mc:Ignorable="d" 
-             d:DesignHeight="450" d:DesignWidth="800">
+             mc:Ignorable="d" Height="540.244" Width="776.829">
     <UserControl.Resources>
         <BooleanToVisibilityConverter x:Key="BoolToVisibleConverter" />
     </UserControl.Resources>
-    <Grid Background="{DynamicResource {x:Static SystemColors.ActiveCaptionBrushKey}}">
-        <Image x:Name="Video" Source="{Binding VideoSource}" OpacityMask="Black"  Margin="0,0,0,0" Effect="{Binding BlurEffect}" >
+    <Grid Background="{DynamicResource {x:Static SystemColors.ActiveCaptionBrushKey}}" RenderTransformOrigin="0.502,0.58">
+        <Grid.RowDefinitions>
+            <RowDefinition />
+            <RowDefinition Height="41" MinHeight="41"/>
+        </Grid.RowDefinitions>
+        <Image x:Name="Video" Source="{Binding VideoSource}" OpacityMask="Black"  Effect="{Binding BlurEffect}" >
         </Image>
-        <local:WaitPanel x:Name="waitPanel" HorizontalAlignment="Center" Margin="0" VerticalAlignment="Center" Visibility="{Binding Path=IsBusy, Converter={StaticResource BoolToVisibleConverter}}" />
+        <local:WaitPanel x:Name="waitPanel" Visibility="{Binding Path=IsBusy, Converter={StaticResource BoolToVisibleConverter}}" />
+        <Label  Content = "{Binding Path=Banner}" Foreground="Red" HorizontalAlignment="Center"  VerticalAlignment="Center" FontFamily="Segoe UI" FontSize="14" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" IsEnabled="False" UseLayoutRounding="True" Background="{x:Null}" Height="10" Width="10"/>
+        <Grid  Grid.Row="1" Background="#FFF90000"/>
+
+
+
     </Grid>
 </UserControl>
