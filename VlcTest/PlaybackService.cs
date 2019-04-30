@@ -1,6 +1,7 @@
 ﻿using NLog;
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -23,9 +24,18 @@ namespace VlcTest
         Faulted,
     }
 
-    class PlaybackSession
+    class PlaybackSession : INotifyPropertyChanged
     {
-        public string Mri { get; set; }
+        public PlaybackSession()
+        {
+            
+        }
+
+        public string Mri
+        {
+            get;
+            set;
+        }
 
         private PlaybackState _state = PlaybackState.Created;
         public PlaybackState State
@@ -47,7 +57,26 @@ namespace VlcTest
 
         }
 
-        public double Position { get; set; }
+        private double position = 0;
+        public double Position
+        {
+            get
+            {
+                return position;
+            }
+            set
+            {
+                if (position != value)
+                {
+                    var old = position;
+                    position = value;
+
+                    OnPropertyChanged(nameof(Position));
+                }
+            }
+        }
+
+
         public int Volume { get; set; }
         public bool IsMute { get; set; }
 
@@ -64,11 +93,15 @@ namespace VlcTest
         public event Action<PlaybackState, PlaybackState> StateChanged;
         private void OnStateChanged(PlaybackState newState, PlaybackState oldState)
         {
-            //StateChanged?.BeginInvoke(state, args, null, null);
-
             StateChanged?.Invoke(newState, oldState);
         }
 
+
+        public event PropertyChangedEventHandler PropertyChanged;
+        protected virtual void OnPropertyChanged(string propertyName)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
     }
 
 
@@ -91,6 +124,11 @@ namespace VlcTest
         public PlaybackService(PlaybackOptions options)
         {
             this.playbackOptions = options;
+
+            this.Session = new PlaybackSession
+            {
+
+            };
         }
 
         public PlaybackSession Session { get; private set; }
@@ -239,11 +277,13 @@ namespace VlcTest
                 var args = obj as object[];
                 var fileName = args[0].ToString();
 
-                Session = new PlaybackSession
-                {
-                    State = PlaybackState.Created,
-                    SourceMedia = fileName,
-                };
+                Session.SourceMedia = fileName;
+
+                //Session = new PlaybackSession
+                //{
+                //    State = PlaybackState.Created,
+                //    SourceMedia = fileName,
+                //};
 
                 bool result = StartUp(fileName);
 
@@ -463,7 +503,6 @@ namespace VlcTest
                                 Session.Position = position;
                                 OnPlaybackPositionChanged(position);
                             }
-
                         }
                     }
                     break;

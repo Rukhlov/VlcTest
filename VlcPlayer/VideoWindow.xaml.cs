@@ -69,16 +69,29 @@ namespace VlcPlayer
             base.OnClosing(e);
         }
 
-        private PlaybackHost playback = null;
-        internal PlaybackHost Playback
+        private VlcPlayback playback = null;
+        internal VlcPlayback Playback
         {
             get
             {
                 if(playback== null)
                 {
-                    playback = this.DataContext as PlaybackHost;
+                    playback = this.DataContext as VlcPlayback;
                 }
                 return playback;
+            }
+        }
+
+        private PlaybackHost session = null;
+        internal PlaybackHost Session
+        {
+            get
+            {
+                if (session == null)
+                {
+                    session = this.DataContext as PlaybackHost;
+                }
+                return session;
             }
         }
 
@@ -86,7 +99,9 @@ namespace VlcPlayer
         {
             base.OnClosed(e);
 
-            Playback?.Close();
+            Session.QuitCommand.Execute(null);
+
+            //Playback?.Close();
 
             //Environment.Exit(0);
 
@@ -94,7 +109,7 @@ namespace VlcPlayer
 
         private void Video_MouseWheel(object sender, MouseWheelEventArgs e)
         {
-            Playback?.IncrBlurRadius(e.Delta);
+            //Session?.IncrBlurRadius(e.Delta);
         }
     }
 

@@ -61,6 +61,7 @@
             this.speedComboBox = new System.Windows.Forms.ComboBox();
             this.elementHost1 = new System.Windows.Forms.Integration.ElementHost();
             this.videoControl1 = new VlcTest.VideoControl();
+            this.label2 = new System.Windows.Forms.Label();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarPosition)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarVolume)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarBlur)).BeginInit();
@@ -420,11 +421,21 @@
             this.elementHost1.Text = "elementHost1";
             this.elementHost1.Child = this.videoControl1;
             // 
+            // label2
+            // 
+            this.label2.AutoSize = true;
+            this.label2.Location = new System.Drawing.Point(48, 385);
+            this.label2.Name = "label2";
+            this.label2.Size = new System.Drawing.Size(35, 13);
+            this.label2.TabIndex = 41;
+            this.label2.Text = "label2";
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(779, 558);
+            this.Controls.Add(this.label2);
             this.Controls.Add(this.speedComboBox);
             this.Controls.Add(this.labelVolume);
             this.Controls.Add(this.button6);
@@ -506,6 +517,7 @@
         private System.Windows.Forms.Button button6;
         private System.Windows.Forms.Label labelVolume;
         private System.Windows.Forms.ComboBox speedComboBox;
+        private System.Windows.Forms.Label label2;
     }
 }
 

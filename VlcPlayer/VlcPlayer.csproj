@@ -97,8 +97,8 @@
       <SubType>Designer</SubType>
     </Page>
     <Compile Include="CommunicationClient.cs" />
+    <Compile Include="VlcPlayback.cs" />
     <Compile Include="PlaybackHost.cs" />
-    <Compile Include="PlaybackSession.cs" />
     <Compile Include="Program.cs" />
     <Compile Include="VideoWindow.xaml.cs">
       <DependentUpon>VideoWindow.xaml</DependentUpon>

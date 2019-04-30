@@ -31,7 +31,9 @@ namespace VlcPlayer
                 logger.Info("========== START ============");
 
 
-                PlaybackHost playback = new PlaybackHost();
+                PlaybackHost playbackHost = new PlaybackHost();
+
+               // VlcPlayback playback = new VlcPlayback();
 
                 AppDomain.CurrentDomain.UnhandledException += (o, a) =>
                 {
@@ -47,7 +49,7 @@ namespace VlcPlayer
 
                             int code = ProcessException(ex);
 
-                            Quit(playback, code);
+                           // Quit(playback, code);
 
                         }
                     }
@@ -72,7 +74,7 @@ namespace VlcPlayer
                         ParentProcess.Exited += (o, a) =>
                         {
                             logger.Warn("Parent process exited...");
-                            Quit(playback, -1);
+                            //Quit(playback, -1);
 
                         };
                     }
@@ -82,9 +84,11 @@ namespace VlcPlayer
                     }
                 }
 
-                PlaybackSession session = new PlaybackSession(CommandLineOptions);
+                playbackHost.Start();
 
-                playback.Start(session);
+                //PlaybackHost session = new PlaybackHost(CommandLineOptions);
+
+               // playback.Start(session);
 
 
                 logger.Info("============ RUN ===============");
@@ -147,7 +151,7 @@ namespace VlcPlayer
             return code;
         }
 
-        private static void Quit(PlaybackHost host, int code)
+        private static void Quit(VlcPlayback host, int code)
         {
             try
             {

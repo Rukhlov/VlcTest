@@ -16,11 +16,18 @@ namespace VlcPlayer
     {
 
         private static Logger logger = LogManager.GetCurrentClassLogger();
-        public CommunicationClient(PlaybackHost playback)
+        public CommunicationClient(VlcPlayback playback)
         {
             this.playback = playback;
         }
-        private readonly PlaybackHost playback = null;
+
+        public CommunicationClient(PlaybackHost session)
+        {
+            this.session = session;
+        }
+
+        private readonly PlaybackHost session = null;
+        private readonly VlcPlayback playback = null;
 
         //private ICommunicationService playbackService = null;
         private IPlaybackService playbackService = null;
@@ -237,8 +244,8 @@ namespace VlcPlayer
 
             if (!string.IsNullOrEmpty(command))
             {
-                Task.Run(() => playback.ProcessIncomingCommand(command, args));
-
+                //Task.Run(() => playback.ProcessIncomingCommand(command, args));
+                Task.Run(() => session.ProcessIncomingCommand(command, args));
             }
 
         }

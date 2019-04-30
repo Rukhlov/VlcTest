@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
+//using System.Windows.Input;
 using VlcContracts;
 
 namespace VlcTest
@@ -67,7 +68,15 @@ namespace VlcTest
 
             //videoForm.InitVideoControl(videoControl);
 
+
+
+            //trackBarPosition.DataBindings.Add(new Binding("Value", playbackService.Session, "Position", true, DataSourceUpdateMode.OnPropertyChanged ));
+            //label2.DataBindings.Add(new Binding("Text", playbackService.Session, "Position", false, DataSourceUpdateMode.OnPropertyChanged));
+
+           // label2.DataBindings.Add(new Binding("Text", playbackService.Session, "Position"));
+
         }
+
         public class ComboboxItem
         {
             public string Text { get; set; }
@@ -87,6 +96,8 @@ namespace VlcTest
 
         private PlaybackSession playbackSession = null;
         private static PlaybackService _playbackService = null;
+
+
 
         private PlaybackOptions playbackOptions = new PlaybackOptions
         {
@@ -343,8 +354,8 @@ namespace VlcTest
                 bool inPlayingMode = false;
                 if (session != null)
                 {
-                    inPlayingMode = (playbackSession.State == PlaybackState.Playing
-                        || playbackSession.State == PlaybackState.Paused);
+                    inPlayingMode = (session.State == PlaybackState.Playing
+                        || session.State == PlaybackState.Paused);
                 }
 
                 trackBarPosition.Enabled = inPlayingMode;
@@ -372,10 +383,9 @@ namespace VlcTest
             ////string fileName = currentDirectory + @"\Test\AV_60Sec_30Fps.mkv";
             //string fileName = "";//currentDirectory + @"\Test\AV_60Sec_30Fps.mkv";
 
-            var fileName = this.textBox2.Text;
+            string fileName = this.textBox2.Text;
 
-            PlayFile(fileName);
-
+            PlayCommand.Execute(fileName);
         }
 
 
@@ -424,13 +434,26 @@ namespace VlcTest
             }
 
             currentMediaFile = textBox2.Text;
-            PlayFile(currentMediaFile);
+
+            PlayCommand.Execute(currentMediaFile);
+
+           // PlayFile(currentMediaFile);
+        }
+
+        private void PlayFile(params object[] args)
+        {
+            string uri = "";
+            bool force = false;
+
+            if (args != null)
+            {
+
+            }
         }
 
         private void PlayFile(string uri, bool forse = false)
         {
             Debug.WriteLine("PlayFile(...)");
-
 
             videoProvider.IsBusy = true;
 
@@ -449,7 +472,8 @@ namespace VlcTest
         {
             Debug.WriteLine(">>>>>>>>>>>>>>>>>>>>>>>> buttonPause_Click(...)");
 
-            playbackService.Pause();
+            PauseCommand.Execute(null);
+            //playbackService.Pause();
 
         }
 
@@ -457,33 +481,33 @@ namespace VlcTest
         {
             Debug.WriteLine(">>>>>>>>>>>>>>>>>>>>>>>> buttonStop_Click(...)");
 
-            playbackService.Stop();
+            StopCommand.Execute(null);
 
         }
 
         private string currentMediaFile = "";
         private void buttonOpenFile_Click(object sender, EventArgs e)
         {
+            Debug.WriteLine(">>>>>>>>>> buttonOpenFile_Click(...) " + currentMediaFile);
+
             OpenFileDialog dlg = new OpenFileDialog();
 
             var result = dlg.ShowDialog();
+
             if (result == DialogResult.OK)
             {
-
                 currentMediaFile = dlg.FileName;
-
-                Debug.WriteLine(">>>>>>>>>> buttonOpenFile_Click(...) " + currentMediaFile);
 
                 textBox2.Text = currentMediaFile;
 
                 if (File.Exists(currentMediaFile))
                 {
-                    PlayFile(currentMediaFile, true);
+                    PlayCommand.Execute(new object [] { currentMediaFile, true });
 
+                    //PlayFile(currentMediaFile, true);
                     //if (IsPaused || IsStopped)
                     //{
                     //    CreateVideoForm();
-
                     //    PostMessage("Play", new[] { currentMediaFile });
                     //}
                 }
@@ -725,6 +749,168 @@ namespace VlcTest
                 }
             }
         }
+
+        private System.Windows.Input.ICommand playCommand = null;
+        public System.Windows.Input.ICommand PlayCommand
+        {
+            get
+            {
+                if (playCommand == null)
+                {
+                    playCommand = new PlaybackCommand(o =>
+                    {
+                        string uri = "";
+                        bool force = false;
+
+                        if (o is string)
+                        {
+                            uri = o.ToString();
+                        }
+                        else
+                        {
+                            if (o != null)
+                            {
+                                var args = o as object[];
+                                if (args != null && args.Length > 1)
+                                {
+                                    uri = args[0].ToString();
+                                    force = (bool)args[1];                            
+                                }  
+                            }
+                        }
+
+                        if (!string.IsNullOrEmpty(uri))
+                        {
+                            PlayFile(uri, force);
+                        }
+
+                    });
+
+                }
+                return playCommand;
+            }
+        }
+
+
+        private System.Windows.Input.ICommand stopCommand = null;
+        public System.Windows.Input.ICommand StopCommand
+        {
+            get
+            {
+                if (stopCommand == null)
+                {
+                    stopCommand = new PlaybackCommand(o =>
+                    {
+                        if (playbackService != null)
+                        {
+                            playbackService.Stop();
+                        }
+                    });
+                }
+                return stopCommand;
+            }
+        }
+
+        private System.Windows.Input.ICommand pauseCommand = null;
+        public System.Windows.Input.ICommand PauseCommand
+        {
+            get
+            {
+                if (pauseCommand == null)
+                {
+                    pauseCommand = new PlaybackCommand(o =>
+                    {
+                        if (playbackService != null)
+                        {
+                            playbackService.Pause();
+                        }
+
+                    });
+
+                }
+                return pauseCommand;
+            }
+        }
+
+
+    }
+
+    class PlaybackController
+    {
+        private VideoSourceProvider videoProvider = null;
+
+        private PlaybackSession playbackSession = null;
+        public PlaybackSession Session
+        {
+            get
+            {
+                return Service.Session;
+            }
+        }
+
+        public PlaybackService Service
+        {
+            get
+            {
+                if (playbackService == null)
+                {
+                    //playbackService = new PlaybackService(playbackOptions);
+
+                    //playbackService.StateChanged += playbackService_StateChanged;
+                    //playbackService.Opened += playbackService_Opened;
+                    //playbackService.ReadyToPlay += playbackService_ReadyToPlay;
+                    //playbackService.Closed += playbackService_Closed;
+
+                    //playbackService.PlaybackStartDisplay += playbackService_PlaybackStartDisplay;
+                    //playbackService.PlaybackStopDisplay += playbackService_PlaybackStopDisplay;
+
+                    //playbackService.PlaybackPositionChanged += playbackService_PlaybackPositionChanged;
+                    //playbackService.PlaybackLengthChanged += playbackService_PlaybackLengthChanged;
+                }
+
+                return playbackService;
+            }
+        }
+
+        private PlaybackService playbackService = null;
+
+
+
+    }
+
+    class PlaybackCommand : System.Windows.Input.ICommand
+    {
+
+        public PlaybackCommand(Action<object> execute)
+            : this(execute, null) { }
+
+        public PlaybackCommand(Action<object> execute, Predicate<object> canExecute)
+        {
+            _execute = execute;
+            _canExecute = canExecute;
+        }
+
+
+        public event EventHandler CanExecuteChanged;
+
+        public bool CanExecute(object parameter)
+        {
+            return _canExecute != null ? _canExecute(parameter) : true;
+        }
+
+        public void Execute(object parameter)
+        {
+            if (_execute != null)
+                _execute(parameter);
+        }
+
+        public void OnCanExecuteChanged()
+        {
+            CanExecuteChanged(this, EventArgs.Empty);
+        }
+
+        private readonly Action<object> _execute = null;
+        private readonly Predicate<object> _canExecute = null;
     }
 
 
