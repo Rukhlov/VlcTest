@@ -201,9 +201,9 @@ namespace VlcPlayer
             EnqueueCommand("Stop");
         }
 
-        public void Mute(object[] args)
+        public void SetMute(bool mute)
         {
-            EnqueueCommand("Mute", args);
+            EnqueueCommand("Mute", new object[] { mute });
         }
 
         public void SetVolume(int vol)
@@ -517,7 +517,7 @@ namespace VlcPlayer
                         break;
                     }
                 }
-
+                //Thread.Sleep(5000);
             }
             catch (Exception ex)
             {
@@ -764,7 +764,7 @@ namespace VlcPlayer
                         if (State == PlaybackState.Playing ||
                             State == PlaybackState.Paused)
                         {
-                            SetPosition(command.args);
+                            SetPlayerPosition(command.args);
 
 
                         }
@@ -778,7 +778,7 @@ namespace VlcPlayer
 
                 case "Mute":
                     {
-                        SetMute(command.args);
+                        SetPlayerMute(command.args);
                     }
                     break;
                 case "Muted":
@@ -807,7 +807,7 @@ namespace VlcPlayer
                     break;
                 case "SetRate":
                     {
-                        SetRate(command.args);
+                        SetPlayerRate(command.args);
                     }
                     break;
                 case "AudioVolume":
@@ -976,7 +976,7 @@ namespace VlcPlayer
             }
         }
 
-        private void SetMute(object[] args)
+        private void SetPlayerMute(object[] args)
         {
             var arg0 = "";
             if (args?.Length > 0)
@@ -1015,7 +1015,7 @@ namespace VlcPlayer
 
         }
 
-        private void SetRate(object[] args)
+        private void SetPlayerRate(object[] args)
         {
             var arg0 = "";
             if (args?.Length > 0)
@@ -1035,7 +1035,7 @@ namespace VlcPlayer
             }
         }
 
-        private void SetPosition(object[] args)
+        private void SetPlayerPosition(object[] args)
         {
             var arg0 = "";
             if (args?.Length > 0)
@@ -1363,7 +1363,7 @@ namespace VlcPlayer
             commandQueue.Clear();
         }
 
-        public void CleanUp()
+        private void CleanUp()
         {
             //Thread.Sleep(1000000);
             //throw new Exception("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! CleanUp()");

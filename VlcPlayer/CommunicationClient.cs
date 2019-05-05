@@ -16,18 +16,13 @@ namespace VlcPlayer
     {
 
         private static Logger logger = LogManager.GetCurrentClassLogger();
-        public CommunicationClient(VlcPlayback playback)
+        public CommunicationClient(PlaybackHost host)
         {
-            this.playback = playback;
+            this.host = host;
         }
 
-        public CommunicationClient(PlaybackHost session)
-        {
-            this.session = session;
-        }
 
-        private readonly PlaybackHost session = null;
-        private readonly VlcPlayback playback = null;
+        private readonly PlaybackHost host = null;
 
         //private ICommunicationService playbackService = null;
         private IPlaybackService playbackService = null;
@@ -141,7 +136,7 @@ namespace VlcPlayer
             catch (Exception ex)
             {
                 logger.Error(ex);
-                playback.Close();
+                host.Quit();
             }
 
             return options;
@@ -157,7 +152,7 @@ namespace VlcPlayer
             catch (Exception ex)
             {
                 logger.Error(ex);
-                playback.Close();
+                host.Quit();
             }
         }
 
@@ -194,7 +189,7 @@ namespace VlcPlayer
             }
             finally
             {
-                playback.Close();
+                host.Quit();
             }
         }
 
@@ -245,7 +240,7 @@ namespace VlcPlayer
             if (!string.IsNullOrEmpty(command))
             {
                 //Task.Run(() => playback.ProcessIncomingCommand(command, args));
-                Task.Run(() => session.ProcessIncomingCommand(command, args));
+                Task.Run(() => host.OnReceiveCommand(command, args));
             }
 
         }

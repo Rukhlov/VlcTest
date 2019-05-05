@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -14,21 +15,104 @@ using System.Windows.Threading;
 
 namespace VlcPlayer
 {
-    public class PlaybackHost : INotifyPropertyChanged
+    public class PlaybackHost
+    {
+        private static NLog.Logger logger = NLog.LogManager.GetCurrentClassLogger();
+
+        private CommunicationClient ipcChannel = null;
+
+        private PlaybackController playbackController = null;
+        public Dispatcher Dispatcher { get; private set; }
+
+        public void Run(CommandLineOptions cmdOpts = null)
+        {
+            Dispatcher = Dispatcher.CurrentDispatcher;
+
+            string remoteAddr = cmdOpts?.ServerAddr;
+
+            if (!string.IsNullOrEmpty(remoteAddr))
+            {
+                ipcChannel = new CommunicationClient(this);
+
+                ipcChannel.Setup(remoteAddr);
+
+                var options = ipcChannel.Connect(new[] { "eventId", "memoId" });
+                if (options != null)
+                {
+                    //playbackHost.Volume = options.Volume;
+                    //playbackHost.IsMute = options.IsMute;
+                    //vlcPlayback.LoopPlayback = options.LoopPlayback;
+
+                    //this.SetBlurRadius(options.BlurRadius);
+
+
+                }
+            }
+
+            playbackController = new PlaybackController(this);
+
+            playbackController.Start(cmdOpts);
+
+            System.Windows.Threading.Dispatcher.Run();
+        }
+
+        public void OnSendCommand(string command, object[] args)
+        {
+            //...
+
+            ipcChannel?.OnPostMessage(command, args);
+        }
+
+        public void OnReceiveCommand(string command, object[] args)
+        {
+            //...
+
+            playbackController?.ProcessCommand(command, args);
+        }
+
+        public void Quit()
+        {
+            try
+            {
+                ipcChannel?.Close();
+                playbackController?.Close();
+
+                Dispatcher.InvokeShutdown();
+            }
+            catch (Exception ex)
+            {
+                logger.Fatal(ex);
+                Process.GetCurrentProcess().Kill();
+            }
+
+        }
+    }
+
+
+
+    public class PlaybackController : INotifyPropertyChanged
     {
         private static NLog.Logger logger = NLog.LogManager.GetCurrentClassLogger();
 
         private readonly Dispatcher dispatcher = null;
+        private readonly PlaybackHost playbackHost = null;
 
-        public PlaybackHost()
+        public PlaybackController(PlaybackHost host)
         {
-            this.dispatcher = Dispatcher.CurrentDispatcher;
-
-            this.vlcPlayback = new VlcPlayback();
+            this.dispatcher = host.Dispatcher;
+            this.playbackHost = host;
         }
-        
-        public PlaybackHost(CommandLineOptions options) : this()
+
+        private VlcPlayback vlcPlayback = null;
+        private VideoSourceProvider videoSourceProvider = null;
+
+        public void Start(CommandLineOptions options = null)
         {
+            logger.Debug("Start()");
+
+            vlcPlayback = new VlcPlayback();
+            vlcPlayback.PlaybackChanged += vlcPlayback_PlaybackChanged;
+
             if (options != null)
             {
                 vlcPlayback.MediaAddr = options.FileName;
@@ -36,13 +120,62 @@ namespace VlcPlayer
                 this.ParentId = options.ParentId;
                 this.WindowHandle = options.WindowHandle;
             }
+
+            if (Program.ParentProcess == null)
+            {
+                MainWindow.Show();
+
+                var handle = new WindowInteropHelper(this.MainWindow).Handle;//EnsureHandle();
+
+                videoSourceProvider = new VideoSourceProvider();
+                videoSourceProvider.WindowHandle = handle;//(IntPtr)this.WindowHandle;
+
+            }
+
+            vlcPlayback.Start(videoSourceProvider);
         }
 
-        private VlcPlayback vlcPlayback = null;
-        private CommunicationClient communicationClient = null;
+        private void vlcPlayback_PlaybackChanged(string command, object[] args)
+        {
+            //...
+            playbackHost.OnSendCommand(command, args);
 
-        public VideoSourceProvider VideoSourceProvider { get; private set; }
+        }
 
+        public void Close()
+        {
+            logger.Debug("Close()");
+            //try
+            //{
+                vlcPlayback.PlaybackChanged -= vlcPlayback_PlaybackChanged;
+
+                vlcPlayback?.Close();
+
+
+            //}
+            //catch (Exception ex)
+            //{
+            //    logger.Fatal(ex);
+            //    Process.GetCurrentProcess().Kill();
+            //}
+        }
+
+
+        private VideoWindow mainWindow = null;
+        public VideoWindow MainWindow
+        {
+            get
+            {
+                if (mainWindow == null)
+                {
+                    mainWindow = new VideoWindow
+                    {
+                        DataContext = this,
+                    };
+                }
+                return mainWindow;
+            }
+        }
 
         private ICommand playCommand = null;
         public ICommand PlayCommand
@@ -110,7 +243,11 @@ namespace VlcPlayer
                 {
                     quitCommand = new PlaybackCommand(p =>
                     {
-                        Task.Run(() => vlcPlayback.Close());
+                        Task.Run(() => 
+                        {
+                            playbackHost.Quit();
+
+                        });
 
                     });
                 }
@@ -155,12 +292,7 @@ namespace VlcPlayer
                 {
                     muteCommand = new PlaybackCommand(p =>
                     {
-                        object[] args = null;
-                        if (p != null)
-                        {
-                            args = p as object[];
-                        }
-                        vlcPlayback.Mute(args);
+                         vlcPlayback.SetMute(true);
                     });
                 }
                 return muteCommand;
@@ -200,21 +332,7 @@ namespace VlcPlayer
             }
         }
 
-        private VideoWindow videoWindow = null;
-        public VideoWindow VideoWindow
-        {
-            get
-            {
-                if (videoWindow == null)
-                {
-                    videoWindow = new VideoWindow
-                    {
-                        DataContext = this,
-                    };
-                }
-                return videoWindow;
-            }
-        }
+
 
         private BlurEffect blurEffect = new BlurEffect { Radius = 0 };
         public BlurEffect BlurEffect
@@ -298,53 +416,62 @@ namespace VlcPlayer
         }
 
 
+        private Visibility visibility = Visibility.Visible;
+        public Visibility Visibility
+        {
+            get => visibility;
+            set
+            {
+                if (visibility != value)
+                {
+                    visibility = value;
+                    OnPropertyChanged(nameof(Visibility));
+                }
+            }
+        }
+
+        /*
+        private VideoWindow videoWindow = null;
+        public VideoWindow VideoWindow
+        {
+            get
+            {
+                if (videoWindow == null)
+                {
+                    videoWindow = new VideoWindow
+                    {
+                        DataContext = this,
+                    };
+                }
+                return videoWindow;
+            }
+        }
+
+    */
         public void SetVideoWindowVisible(bool visible)
         {
             dispatcher.Invoke(() =>
             {
                 if (visible)
                 {
-                    if (VideoWindow.Visibility != Visibility.Visible)
+                    if (MainWindow.Visibility != Visibility.Visible)
                     {
-                        VideoWindow.Visibility = Visibility.Visible;
+                        MainWindow.Visibility = Visibility.Visible;
                     }
                 }
                 else
                 {
-                    if (VideoWindow.Visibility == Visibility.Visible)
+                    if (MainWindow.Visibility == Visibility.Visible)
                     {
-                        VideoWindow.Visibility = Visibility.Hidden;
+                        MainWindow.Visibility = Visibility.Hidden;
                     }
                 }
             });
 
         }
 
-        private void SetupCommunications()
-        {
-            logger.Debug("SetupCommunications");
 
-            if (!string.IsNullOrEmpty(RemoteAddr))
-            {
-                communicationClient = new CommunicationClient(this);
-
-                communicationClient.Setup(this.RemoteAddr);
-
-                var options = communicationClient.Connect(new[] { "eventId", "memoId" });
-                if (options != null)
-                {
-                    //playbackHost.Volume = options.Volume;
-                    //playbackHost.IsMute = options.IsMute;
-                    //vlcPlayback.LoopPlayback = options.LoopPlayback;
-
-                    this.SetBlurRadius(options.BlurRadius);
-
-
-                }
-            }
-        }
-
-        internal void ProcessIncomingCommand(string command, object[] args)
+        public void ProcessCommand(string command, object[] args)
         {
             string arg0 = "";
             if (args?.Length > 0)
@@ -354,28 +481,37 @@ namespace VlcPlayer
 
             if (command == "Play")
             {
-                if (string.IsNullOrEmpty(arg0))
-                {
-                    arg0 = vlcPlayback.MediaAddr;
-                }
-                else
-                {
-                    vlcPlayback.MediaAddr = arg0;
-                }
+                //if (string.IsNullOrEmpty(arg0))
+                //{
+                //    arg0 = vlcPlayback.MediaAddr;
+                //}
+                //else
+                //{
+                //    vlcPlayback.MediaAddr = arg0;
+                //}
+                //vlcPlayback.Play(arg0);
 
-                PlayCommand.Execute(arg0);
+                PlayCommand.Execute(args);
             }
             else if (command == "Pause")
             {
                 PauseCommand.Execute(null);
+
+                //vlcPlayback.Pause();
             }
             else if (command == "Stop")
             {
                 StopCommand.Execute(null);
+
+                // vlcPlayback.Stop();
             }
             else if (command == "Mute")
             {
-                vlcPlayback.Mute(args);
+                bool mute = false;
+                if (bool.TryParse(arg0, out mute))
+                {
+                    vlcPlayback.SetMute(mute);
+                }
             }
             else if (command == "Position")
             {
@@ -404,15 +540,17 @@ namespace VlcPlayer
                 int blurRadius = 0;
                 if (int.TryParse(arg0, out blurRadius))
                 {
-                    this.SetBlurRadius(blurRadius);
+                    SetBlurRadius(blurRadius);
                 }
             }
             else if (command == "SwitchVisibilityState")
             {
+
                 bool visible = false;
                 if (bool.TryParse(arg0, out visible))
                 {
-                    this.SetVideoWindowVisible(visible);
+                    SetVideoWindowVisible(visible);
+                    // playbackController.Visibility = visible ? Visibility.Visible : Visibility.Hidden;
 
                 }
             }
@@ -431,41 +569,6 @@ namespace VlcPlayer
             }
         }
 
-
-
-        public void Start()
-        {
-            VideoSourceProvider = new VideoSourceProvider();
-
-
-            if (Program.ParentProcess == null)
-            {
-                VideoWindow.Show();
-
-                var handle = new WindowInteropHelper(this.VideoWindow).Handle;//EnsureHandle();
-
-                VideoSourceProvider.WindowHandle = handle;//(IntPtr)this.WindowHandle;
-
-            }
-
-            vlcPlayback.Start(VideoSourceProvider);
-
-            //playbackHost.PropertyChanged += PlaybackHost_PropertyChanged;
-            vlcPlayback.PlaybackChanged += vlcPlayback_PlaybackChanged;
-        }
-
-        private void vlcPlayback_PlaybackChanged(string command, object[] args)
-        {
-            communicationClient?.OnPostMessage(command, args);
-        }
-
-        private void PlaybackHost_PropertyChanged(object sender, PropertyChangedEventArgs e)
-        {
-            if (e.PropertyName == "VideoSource")
-            {
-                
-            }
-        }
     }
 
 

@@ -148,7 +148,7 @@ namespace VlcTest
                         {
                             if (!playing)
                             {
-                                continue;
+                               // continue;
                             }
                         }
 
@@ -169,7 +169,7 @@ namespace VlcTest
                         rendering = true;
 
                         logger.Debug("Render loop started...");
-                        while (rendering && !closing)
+                        while (rendering )//&& !closing)
                         {
                             if (displayEvent.WaitOne(1000))
                             {

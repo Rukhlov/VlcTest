@@ -15,8 +15,12 @@ namespace VlcPlayer
         public VideoWindow()
         {
             InitializeComponent();
+        }
 
-            //this.DataContext = this;
+        public VideoWindow(PlaybackController controller):this()
+        {
+            
+            this.DataContext = controller;
 
             //this.Video.SetBinding(EffectProperty, new Binding(nameof(BlurEffect)));
             //this.Video.SetBinding(Image.SourceProperty, new Binding(nameof(VideoSource)));
@@ -69,29 +73,16 @@ namespace VlcPlayer
             base.OnClosing(e);
         }
 
-        private VlcPlayback playback = null;
-        internal VlcPlayback Playback
+        private PlaybackController controller = null;
+        internal PlaybackController Controller
         {
             get
             {
-                if(playback== null)
+                if (controller == null)
                 {
-                    playback = this.DataContext as VlcPlayback;
+                    controller = this.DataContext as PlaybackController;
                 }
-                return playback;
-            }
-        }
-
-        private PlaybackHost session = null;
-        internal PlaybackHost Session
-        {
-            get
-            {
-                if (session == null)
-                {
-                    session = this.DataContext as PlaybackHost;
-                }
-                return session;
+                return controller;
             }
         }
 
@@ -99,7 +90,7 @@ namespace VlcPlayer
         {
             base.OnClosed(e);
 
-            Session.QuitCommand.Execute(null);
+            Controller?.QuitCommand.Execute(null);
 
             //Playback?.Close();
 

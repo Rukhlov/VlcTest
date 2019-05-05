@@ -49,7 +49,7 @@ namespace VlcPlayer
 
                             int code = ProcessException(ex);
 
-                           // Quit(playback, code);
+                            Quit(playbackHost, code);
 
                         }
                     }
@@ -74,7 +74,7 @@ namespace VlcPlayer
                         ParentProcess.Exited += (o, a) =>
                         {
                             logger.Warn("Parent process exited...");
-                            //Quit(playback, -1);
+                            Quit(playbackHost, -1);
 
                         };
                     }
@@ -84,15 +84,8 @@ namespace VlcPlayer
                     }
                 }
 
-                playbackHost.Start();
-
-                //PlaybackHost session = new PlaybackHost(CommandLineOptions);
-
-               // playback.Start(session);
-
-
                 logger.Info("============ RUN ===============");
-                System.Windows.Threading.Dispatcher.Run();
+                playbackHost.Run();
 
             }
             catch (Exception ex)
@@ -151,13 +144,13 @@ namespace VlcPlayer
             return code;
         }
 
-        private static void Quit(VlcPlayback host, int code)
+        public static void Quit(PlaybackHost host, int code)
         {
             try
             {
                 if (host != null)
                 {
-                    host.Close();
+                    host.Quit();
                 }
                 else
                 {
