@@ -39,15 +39,12 @@ namespace VlcPlayer
 
         public VlcPlayback()
         {
-           // this.communicationClient = new CommunicationClient(this);
-           // this.videoGrabber = new VideoFrameGrabber(this);
-
             this.mrlProvider = new MrlProvider(this);
             this.state = PlaybackState.Created;
         }
 
         private VlcMediaPlayer mediaPlayer = null;
-        private VideoFrameGrabber videoGrabber = null;
+        private VlcVideoFrameGrabber videoGrabber = null;
 
         private MrlProvider mrlProvider = null;
 
@@ -211,6 +208,7 @@ namespace VlcPlayer
             EnqueueCommand("Volume", new object[] { vol });
         }
 
+
         public void Start(VideoSourceProvider provider)
         {
             try
@@ -261,8 +259,8 @@ namespace VlcPlayer
             }
             else
             {
-                //videoGrabber = new VideoFrameGrabber(this);
-                //videoGrabber.Setup();
+                videoGrabber = new VlcVideoFrameGrabber(mediaPlayer);
+                videoGrabber.Setup(videoSourceProvider);
             }
                 
 
@@ -1396,116 +1394,16 @@ namespace VlcPlayer
             // cancellationTokenSource?.Dispose();
         }
 
-        /*
-        internal void ProcessIncomingCommand(string command, object[] args)
-        {
-            string arg0 = "";
-            if (args?.Length > 0)
-            {
-                arg0 = args[0]?.ToString();
-            }
-
-            if (command == "Play")
-            {
-                if (string.IsNullOrEmpty(arg0))
-                {
-                    arg0 = Session.MediaAddr;
-                }
-                else
-                {
-                    Session.MediaAddr = arg0;
-                }
-
-                Play(arg0);
-
-                //PlayCommand.Execute(arg0);
-            }
-            else if (command == "Pause")
-            {
-                Pause();
-            }
-            else if (command == "Stop")
-            {
-                Stop();
-            }
-            else if (command == "Mute")
-            {
-                Mute(args);
-            }
-            else if (command == "Position")
-            {
-                EnqueueCommand("Position", new[] { arg0 });
-            }
-            else if (command == "Volume")
-            {
-                EnqueueCommand("Volume", new[] { arg0 });
-            }
-            else if (command == "SetAdjustments")
-            {
-                EnqueueCommand("SetAdjustments", args);
-            }
-            else if (command == "SetRate")
-            {
-                EnqueueCommand("SetRate", args);
-            }
-            else if (command == "Blur")
-            {
-                int blurRadius = 0;
-                if (int.TryParse(arg0, out blurRadius))
-                {
-                    Session.SetBlurRadius(blurRadius);
-                }
-            }
-            else if (command == "SwitchVisibilityState")
-            {
-                bool visible = false;
-                if (bool.TryParse(arg0, out visible))
-                {
-                    Session.SetVideoWindowVisible(visible);
-
-                }
-            }
-            else if (command == "SetLoopPlayback")
-            {
-                bool _loopPlayback = false;
-                if (bool.TryParse(arg0, out _loopPlayback))
-                {
-                    if (loopPlayback != _loopPlayback)
-                    {
-                        loopPlayback = _loopPlayback;
-                    }
-                }
-                else
-                {
-                    loopPlayback = !loopPlayback;
-                }
-            }
-
-        }
-        */
-
         public event Action<string, object[]> PlaybackChanged;
         private void OnPlaybackChanged(string command, object[] args = null)
         {
             PlaybackChanged?.Invoke(command, args);
         }
 
-        //private void InvokeEventAsync(string command, object[] args = null)
-        //{
-        //    InvokeEvent(command, args);
-        //    //return Task.Run(() => InvokeEvent(command, args));
-        //}
-
-        //private void InvokeEvent(string command, object[] args = null)
-        //{
-        //    //logger.Debug("PostToClient(...) " + command);
-        //    communicationClient?.OnPostMessage(command, args);
-        //}
-
-        private void SetupVideo(IntPtr handle, int width, int height, PixelFormat fmt, int pitches, int offset)
+        private void SetupVideo(IntPtr handle, int width, int height, PixelFormat fmt, int pitches, int offset, string memoryId, string eventId)
         {
 
-            videoSourceProvider?.SetupVideo(handle, width, height, fmt, pitches, offset);
+            videoSourceProvider?.SetupVideo(handle, width, height, fmt, pitches, offset, memoryId, eventId);
 
             //var _fmt = (fmt == PixelFormats.Bgra32) ?
             //    System.Drawing.Imaging.PixelFormat.Format32bppArgb :
@@ -1535,60 +1433,204 @@ namespace VlcPlayer
         }
 
 
-
-        class VideoFrameGrabber : IDisposable
+        class VlcVideoFrameGrabber : IDisposable
         {
 
-            private readonly VlcPlayback playback = null;
+            private readonly VlcMediaPlayer player = null;
 
             private MemoryMappedFile memoryMappedFile;
             private MemoryMappedViewAccessor memoryMappedView;
+
+            private VideoSourceProvider videoSourceProvider = null;
 
             private EventWaitHandle eventWaitHandle = null;
 
             private bool isAlphaChannelEnabled = true;
 
-            public VideoFrameGrabber(VlcPlayback playback)
+            public VlcVideoFrameGrabber(VlcMediaPlayer player)
             {
-                this.playback = playback;
+                this.player = player;
             }
 
             internal string eventId = "";
             internal string memoryId = "";
 
-            public void Setup()
+            
+            public void Setup(VideoSourceProvider provider)
             {
                 logger.Debug("Setup(...)");
+                Debug.Assert(provider != null, "provider != null");
 
+                videoSourceProvider = provider;
 
-                var player = playback.mediaPlayer;
-                if (player != null)
-                {                
-                    memoryId = Guid.NewGuid().ToString("N");
-                    this.memoryMappedFile = MemoryMappedFile.CreateNew(memoryId, 30 * 1024 * 1024, MemoryMappedFileAccess.ReadWrite);
+                memoryId = Guid.NewGuid().ToString("N");
+                this.memoryMappedFile = MemoryMappedFile.CreateNew(memoryId, 30 * 1024 * 1024, MemoryMappedFileAccess.ReadWrite);
 
-                    eventId = Guid.NewGuid().ToString("N");
-                    this.eventWaitHandle = CreateEventWaitHandle(eventId);
+                eventId = Guid.NewGuid().ToString("N");
+                this.eventWaitHandle = CreateEventWaitHandle(eventId);
 
-                    player.SetVideoFormatCallbacks(this.VideoFormat, this.Cleanup);
-                    player.SetVideoCallbacks(LockVideo, null, Display, IntPtr.Zero);
-                    
-                }
+                player.SetVideoFormatCallbacks(this.VideoFormat, this.Cleanup);
+                player.SetVideoCallbacks(LockVideo, null, Display, IntPtr.Zero);
+                              
 
             }
 
 
-            #region Vlc video callbacks
-            /// <summary>
-            /// Called by vlc when the video format is needed. This method allocats the picture buffers for vlc and tells it to set the chroma to RV32
-            /// </summary>
-            /// <param name="userdata">The user data that will be given to the <see cref="LockVideo"/> callback. It contains the pointer to the buffer</param>
-            /// <param name="chroma">The chroma</param>
-            /// <param name="width">The visible width</param>
-            /// <param name="height">The visible height</param>
-            /// <param name="pitches">The buffer width</param>
-            /// <param name="lines">The buffer height</param>
-            /// <returns>The number of buffers allocated</returns>
+
+            class VideoBuffer
+            {
+                public readonly string Id = "";
+
+                public VideoBuffer(string id, int width, int height, PixelFormat format)
+                {
+                    if (string.IsNullOrEmpty(id))
+                    {
+                        id = Guid.NewGuid().ToString("N");
+                    }
+
+                    this.Id = id;
+                    this.Width = width;
+                    this.Height = height;
+                    this.PixelFmt = format;
+
+                    uint lines = this.GetAlignedDimension((uint)Height, 32);
+
+                    this.memoryMappedFile = MemoryMappedFile.CreateNew(Id, DataSize, MemoryMappedFileAccess.ReadWrite);
+                    this.memoryMappedView = this.memoryMappedFile.CreateViewAccessor();
+
+                    this.DataPtr = memoryMappedView.SafeMemoryMappedViewHandle.DangerousGetHandle();
+
+                }
+
+                private MemoryMappedFile memoryMappedFile = null;
+                private MemoryMappedViewAccessor memoryMappedView = null;
+               
+                public int Width { get; private set; }
+                public int Height { get; private set; }
+                public PixelFormat PixelFmt { get; private set; }
+
+                public uint Pitches
+                {
+                    get
+                    {
+                        return this.GetAlignedDimension((uint)(Width * PixelFmt.BitsPerPixel) / 8, 32);
+                    }
+                }
+
+                public IntPtr DataPtr { get; private set; }
+                public long DataSize
+                {
+                    get
+                    {
+                        uint lines = this.GetAlignedDimension((uint)Height, 32);
+
+                        return this.Pitches * lines;
+                    }
+                }
+
+
+                private uint GetAlignedDimension(uint dimension, uint mod)
+                {
+                    var modResult = dimension % mod;
+                    if (modResult == 0)
+                    {
+                        return dimension;
+                    }
+
+                    return dimension + mod - (dimension % mod);
+                }
+
+
+                private static System.Windows.Media.PixelFormat ToPixelFormat(System.Drawing.Imaging.PixelFormat sourceFormat)
+                {
+                    switch (sourceFormat)
+                    {
+                        case System.Drawing.Imaging.PixelFormat.Format24bppRgb:
+                            return PixelFormats.Bgr24;
+
+                        case System.Drawing.Imaging.PixelFormat.Format32bppArgb:
+                            return PixelFormats.Bgra32;
+
+                        case System.Drawing.Imaging.PixelFormat.Format32bppRgb:
+                            return PixelFormats.Bgr32;
+
+                    }
+                    return new System.Windows.Media.PixelFormat();
+                }
+
+                private static System.Drawing.Imaging.PixelFormat ToGdiPixelFormat(System.Windows.Media.PixelFormat sourceFormat)
+                {
+                    System.Drawing.Imaging.PixelFormat format = System.Drawing.Imaging.PixelFormat.Undefined;
+                    if (sourceFormat == PixelFormats.Bgr24)
+                    {
+                        format = System.Drawing.Imaging.PixelFormat.Format24bppRgb;
+                    }
+                    else if (sourceFormat == PixelFormats.Bgra32)
+                    {
+                        format = System.Drawing.Imaging.PixelFormat.Format32bppArgb;
+                    }
+                    else if (sourceFormat == PixelFormats.Bgr32)
+                    {
+                        format = System.Drawing.Imaging.PixelFormat.Format32bppRgb;
+                    }
+                    return format;
+                }
+
+                public void Dispose()
+                {
+                    memoryMappedFile?.Dispose();
+                    memoryMappedView?.Dispose();
+
+                    DataPtr = IntPtr.Zero;
+                }
+            }
+
+
+            private VideoBuffer videoBuffer = null;
+            private unsafe uint _VideoFormat(out IntPtr userdata, IntPtr chroma, ref uint width, ref uint height, ref uint pitches, ref uint lines)
+            {
+                FourCCConverter.ToFourCC("RV32", chroma);
+
+                PixelFormat pixelFormat = isAlphaChannelEnabled ? PixelFormats.Bgra32 : PixelFormats.Bgr32;
+
+                videoBuffer = new VideoBuffer("", (int)width, (int)height, pixelFormat);
+                userdata = videoBuffer.DataPtr;
+                initiated = true;
+
+                return 1;
+            }
+
+            private void _Display(IntPtr userdata, IntPtr picture)
+            {
+                if (initiated)
+                {
+                    initiated = false;
+
+                    //videoSourceProvider.SetupVideo();
+                }
+
+                videoSourceProvider.DisplayVideo();
+            }
+
+            private void _Cleanup(ref IntPtr userdata)
+            {
+                logger.Debug("CleanupVideo(...)");
+
+                if (!disposedValue)
+                {
+                    this._RemoveVideo();
+                }
+
+                initiated = false;
+
+            }
+
+            private void _RemoveVideo()
+            {
+                logger.Debug("RemoveVideo(...)");
+                videoBuffer?.Dispose();
+            }
+
             private unsafe uint VideoFormat(out IntPtr userdata, IntPtr chroma, ref uint width, ref uint height, ref uint pitches, ref uint lines)
             {
                 logger.Debug("VideoFormat(...) " + eventId + " chroma " + chroma + " width " + width + " height " + height + " pitches " + pitches + " lines " + lines);
@@ -1597,6 +1639,9 @@ namespace VlcPlayer
 
                 // FourCCConverter.ToFourCC("BGRA", chroma);
                 FourCCConverter.ToFourCC("RV32", chroma);
+
+
+
 
                 pitches = this.GetAlignedDimension((uint)(width * pixelFormat.BitsPerPixel) / 8, 32);
                 lines = this.GetAlignedDimension(height, 32);
@@ -1627,7 +1672,8 @@ namespace VlcPlayer
                     //this.memoryMappedView = this.memoryMappedFile.CreateViewAccessor();
                 }
 
-                var args = new int[] { (int)width, (int)height, isAlphaChannelEnabled ? 1 : 0, (int)pitches };
+                var args = new int[] { 0, (int)width, (int)height, isAlphaChannelEnabled ? 1 : 0, (int)pitches};
+
                 memoryMappedView.WriteArray(offset, args, 0, args.Length);
                 offset += headerSize;
                 IntPtr ptr = memoryMappedView.SafeMemoryMappedViewHandle.DangerousGetHandle();
@@ -1638,8 +1684,12 @@ namespace VlcPlayer
                 //userdata = IntPtr.Add(new IntPtr(ptr), (int)offset);
 
                 var handle = this.memoryMappedFile.SafeMemoryMappedFileHandle.DangerousGetHandle();
-          
-                playback.SetupVideo(handle, (int)width, (int)height, pixelFormat, (int)pitches, (int)offset);
+
+                videoSourceProvider.SetupVideo(videoBuffer.DataPtr, (int)width, (int)height, pixelFormat, (int)pitches, (int)offset, memoryId, eventId);
+
+
+                //memoryMappedView.Dispose();
+                //memoryMappedFile.Dispose();
 
                 initiated = true;
                 return 1;
@@ -1653,7 +1703,7 @@ namespace VlcPlayer
             {
                 logger.Debug("CleanupVideo(...)");
 
-                var args = new int[] { 0, 0, 0, 0 };
+                var args = new int[] { -1, 0, 0, 0 , 0};
                 memoryMappedView?.WriteArray(0, args, 0, args.Length);
 
                 //using (var handle = memoryMappedView.SafeMemoryMappedViewHandle)
@@ -1666,7 +1716,7 @@ namespace VlcPlayer
                     this.RemoveVideo();
                 }
 
-                playback.CleanupVideo();
+                //playback.CleanupVideo();
                 initiated = false;
 
             }
@@ -1695,15 +1745,22 @@ namespace VlcPlayer
                 if (initiated)
                 {
                     initiated = false;
-                    playback.OnPlaybackChanged("StartDisplay");
+                    //memoryMappedView.Write(8, (int)1);
+
+                    //var args = new int[] { 1, 0, 0, 0, 0 };
+
+                    memoryMappedView.Write(0, (int)1);
+
+                    //memoryMappedView?.WriteArray(0, args, 0, args.Length);
+
+                   // videoSourceProvider.OnPlaybackChanged("StartDisplay");
                 }
 
                 eventWaitHandle?.Set();
 
-                playback.DisplayVideo();
-
+                videoSourceProvider.DisplayVideo();
             }
-            #endregion
+
 
             /// <summary>
             /// Removes the video (must be called from the Dispatcher thread)
@@ -1712,10 +1769,14 @@ namespace VlcPlayer
             {
                 logger.Debug("RemoveVideo(...)");
 
+                videoBuffer?.Dispose();
+
                 //this.VideoSource = null;
 
                 this.memoryMappedView?.Dispose();
                 this.memoryMappedView = null;
+
+
 
                 //this.memoryMappedFile?.Dispose();
                 //this.memoryMappedFile = null;
@@ -1784,7 +1845,7 @@ namespace VlcPlayer
             /// <summary>
             /// The destructor
             /// </summary>
-            ~VideoFrameGrabber()
+            ~VlcVideoFrameGrabber()
             {
                 Dispose(false);
             }
@@ -1982,47 +2043,8 @@ namespace VlcPlayer
         Closed
     }
 
-
-    public class PlaybackCommand : System.Windows.Input.ICommand
-    {
-
-        public PlaybackCommand(Action<object> execute)
-            : this(execute, null) { }
-
-        public PlaybackCommand(Action<object> execute, Predicate<object> canExecute)
-        {
-            _execute = execute;
-            _canExecute = canExecute;
-        }
-
-
-        public event EventHandler CanExecuteChanged;
-
-        public bool CanExecute(object parameter)
-        {
-            return _canExecute != null ? _canExecute(parameter) : true;
-        }
-
-        public void Execute(object parameter)
-        {
-            if (_execute != null)
-                _execute(parameter);
-        }
-
-        public void OnCanExecuteChanged()
-        {
-            CanExecuteChanged(this, EventArgs.Empty);
-        }
-
-        private readonly Action<object> _execute = null;
-        private readonly Predicate<object> _canExecute = null;
-    }
-
-
-
     static class VlcExtensions
     {
-
 
         public static string GetInfoString(this VlcMedia media)
         {

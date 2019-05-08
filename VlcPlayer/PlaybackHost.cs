@@ -3,8 +3,10 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
+using System.IO.MemoryMappedFiles;
 using System.Linq;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
@@ -88,8 +90,6 @@ namespace VlcPlayer
         }
     }
 
-
-
     public class PlaybackController : INotifyPropertyChanged
     {
         private static NLog.Logger logger = NLog.LogManager.GetCurrentClassLogger();
@@ -128,7 +128,7 @@ namespace VlcPlayer
                 var handle = new WindowInteropHelper(this.MainWindow).Handle;//EnsureHandle();
 
                 videoSourceProvider = new VideoSourceProvider();
-                videoSourceProvider.WindowHandle = handle;//(IntPtr)this.WindowHandle;
+                //videoSourceProvider.WindowHandle = handle;//(IntPtr)this.WindowHandle;
 
             }
 
@@ -145,13 +145,15 @@ namespace VlcPlayer
         public void Close()
         {
             logger.Debug("Close()");
+
+            if (vlcPlayback != null)
+            {
+                vlcPlayback.PlaybackChanged -= vlcPlayback_PlaybackChanged;
+                vlcPlayback.Close();
+            }
+
             //try
             //{
-                vlcPlayback.PlaybackChanged -= vlcPlayback_PlaybackChanged;
-
-                vlcPlayback?.Close();
-
-
             //}
             //catch (Exception ex)
             //{
@@ -430,24 +432,6 @@ namespace VlcPlayer
             }
         }
 
-        /*
-        private VideoWindow videoWindow = null;
-        public VideoWindow VideoWindow
-        {
-            get
-            {
-                if (videoWindow == null)
-                {
-                    videoWindow = new VideoWindow
-                    {
-                        DataContext = this,
-                    };
-                }
-                return videoWindow;
-            }
-        }
-
-    */
         public void SetVideoWindowVisible(bool visible)
         {
             dispatcher.Invoke(() =>
@@ -572,6 +556,20 @@ namespace VlcPlayer
     }
 
 
+    class ImageParams
+    {
+        public readonly int Width = 0;
+        public readonly int Height = 0;
+        public readonly PixelFormat PixelFmt = PixelFormats.Default;
+
+        internal ImageParams(int width, int height, PixelFormat format)
+        {
+            this.Width = width;
+            this.Height = height;
+            this.PixelFmt = format;
+        }
+    }
+
 
 
     public class VideoSourceProvider : INotifyPropertyChanged
@@ -592,7 +590,6 @@ namespace VlcPlayer
 
                 return this.windowHandle;
             }
-
             set
             {
                 if (this.windowHandle != value)
@@ -610,10 +607,9 @@ namespace VlcPlayer
         {
             get
             {
-
+                
                 return this.videoSource;
             }
-
             set
             {
                 if (!Object.ReferenceEquals(this.videoSource, value))
@@ -625,8 +621,20 @@ namespace VlcPlayer
         }
 
 
-        public void SetupVideo(IntPtr handle, int width, int height, PixelFormat fmt, int pitches, int offset)
+
+
+        private MemoryMappedFile mmf = null;
+        private MemoryMappedViewAccessor mmv;
+        private EventWaitHandle ewh = null;
+
+        public void SetupVideo(IntPtr handle, int width, int height, PixelFormat fmt, int pitches, int offset, string memoryId, string eventId)
         {
+
+            mmf = MemoryMappedFile.OpenExisting(memoryId);
+            ewh = EventWaitHandle.OpenExisting(eventId);
+
+            mmv = mmf.CreateViewAccessor(0, 1024);
+
             this.dispatcher.Invoke(() =>
             {
                 VideoSource = Imaging.CreateBitmapSourceFromMemorySection(handle, width, height, fmt, pitches, offset);
@@ -639,6 +647,14 @@ namespace VlcPlayer
 
         public void DisplayVideo()
         {
+            int[] args = new int[5];
+            
+            var count = mmv.ReadArray<int>(0, args, 0, args.Length);
+            if (count > 0)
+            {
+                Debug.WriteLine(string.Join(";", args));
+            }
+
             this.dispatcher.BeginInvoke(DispatcherPriority.Render,
                 (Action)(() =>
                 {
@@ -648,6 +664,25 @@ namespace VlcPlayer
 
         public void CleanupVideo()
         {
+            if (mmf != null)
+            {
+                mmf.Dispose();
+                mmf = null;
+            }
+
+            if (mmv != null)
+            {
+                mmv.Dispose();
+                mmv = null;
+            }
+
+            if (ewh != null)
+            {
+                ewh.Dispose();
+                ewh = null;
+            }
+
+
             VideoSource = null;
             interopBitmap = null;
         }
@@ -718,6 +753,42 @@ namespace VlcPlayer
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
+    }
+
+
+    public class PlaybackCommand : System.Windows.Input.ICommand
+    {
+
+        public PlaybackCommand(Action<object> execute)
+            : this(execute, null) { }
+
+        public PlaybackCommand(Action<object> execute, Predicate<object> canExecute)
+        {
+            _execute = execute;
+            _canExecute = canExecute;
+        }
+
+
+        public event EventHandler CanExecuteChanged;
+
+        public bool CanExecute(object parameter)
+        {
+            return _canExecute != null ? _canExecute(parameter) : true;
+        }
+
+        public void Execute(object parameter)
+        {
+            if (_execute != null)
+                _execute(parameter);
+        }
+
+        public void OnCanExecuteChanged()
+        {
+            CanExecuteChanged(this, EventArgs.Empty);
+        }
+
+        private readonly Action<object> _execute = null;
+        private readonly Predicate<object> _canExecute = null;
     }
 
 

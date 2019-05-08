@@ -17,9 +17,8 @@ namespace VlcPlayer
             InitializeComponent();
         }
 
-        public VideoWindow(PlaybackController controller):this()
+        public VideoWindow(PlaybackController controller) : this()
         {
-            
             this.DataContext = controller;
 
             //this.Video.SetBinding(EffectProperty, new Binding(nameof(BlurEffect)));
@@ -30,13 +29,25 @@ namespace VlcPlayer
 
         }
 
-        private WindowInteropHelper windowHelper = null;
+        private PlaybackController controller = null;
+        internal PlaybackController Controller
+        {
+            get
+            {
+                if (controller == null)
+                {
+                    controller = this.DataContext as PlaybackController;
+                }
+                return controller;
+            }
+        }
+
         protected override void OnSourceInitialized(EventArgs e)
         {
             var parentWindow = Program.ParentWindowHandle;
             if (parentWindow != IntPtr.Zero)
             {
-                windowHelper = new WindowInteropHelper(this);
+                var windowHelper = new WindowInteropHelper(this);
 
                 //NativeMethods.SetParent(windowHelper.Handle, parentWindow);
 
@@ -61,46 +72,30 @@ namespace VlcPlayer
 
         protected override void OnInitialized(EventArgs e)
         {
-            base.OnInitialized(e);
+            logger.Debug("OnInitialized(...)");
 
+            base.OnInitialized(e);
         }
 
         protected override void OnClosing(CancelEventArgs e)
         {
-            //closing = true;
-            //syncEvent.Set();
+            logger.Debug("OnClosing(...)");
 
             base.OnClosing(e);
         }
 
-        private PlaybackController controller = null;
-        internal PlaybackController Controller
-        {
-            get
-            {
-                if (controller == null)
-                {
-                    controller = this.DataContext as PlaybackController;
-                }
-                return controller;
-            }
-        }
-
         protected override void OnClosed(EventArgs e)
         {
+            logger.Debug("OnClosed(...)");
+
             base.OnClosed(e);
 
             Controller?.QuitCommand.Execute(null);
-
-            //Playback?.Close();
-
-            //Environment.Exit(0);
-
         }
 
         private void Video_MouseWheel(object sender, MouseWheelEventArgs e)
         {
-            //Session?.IncrBlurRadius(e.Delta);
+            Controller?.IncrBlurRadius(e.Delta);
         }
     }
 
