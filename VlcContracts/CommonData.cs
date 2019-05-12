@@ -64,8 +64,8 @@ namespace VlcContracts
         [DllImport("user32.dll", SetLastError = true)]
         public static extern bool MoveWindow(IntPtr hwnd, int x, int y, int cx, int cy, bool repaint);
 
-
-
+        [DllImport("kernel32.dll", EntryPoint = "RtlMoveMemory")]
+        public static extern void CopyMemory(IntPtr dst, IntPtr src, uint length);
 
         [DllImport("kernel32.dll")]
         public static extern void ZeroMemory(IntPtr dst, ulong length);

@@ -1,17 +1,11 @@
 ﻿using Microsoft.Win32;
 using System;
-using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
-using System.IO.MemoryMappedFiles;
-using System.Linq;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Interop;
-using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Threading;
 
@@ -26,9 +20,11 @@ namespace VlcPlayer
         private PlaybackController playbackController = null;
         public Dispatcher Dispatcher { get; private set; }
 
-        public void Run(CommandLineOptions cmdOpts = null)
+        public void Run()
         {
             Dispatcher = Dispatcher.CurrentDispatcher;
+
+            var cmdOpts = Session.Config.Options;
 
             string remoteAddr = cmdOpts?.ServerAddr;
 
@@ -53,7 +49,7 @@ namespace VlcPlayer
 
             playbackController = new PlaybackController(this);
 
-            playbackController.Start(cmdOpts);
+            playbackController.Start();
 
             System.Windows.Threading.Dispatcher.Run();
         }
@@ -104,11 +100,13 @@ namespace VlcPlayer
         }
 
         private VlcPlayback vlcPlayback = null;
-        private VideoSourceProvider videoSourceProvider = null;
+       
 
-        public void Start(CommandLineOptions options = null)
+        public void Start()
         {
             logger.Debug("Start()");
+
+            var options = Session.Config.Options;
 
             vlcPlayback = new VlcPlayback();
             vlcPlayback.PlaybackChanged += vlcPlayback_PlaybackChanged;
@@ -121,19 +119,25 @@ namespace VlcPlayer
                 this.WindowHandle = options.WindowHandle;
             }
 
-            if (Program.ParentProcess == null)
+            Session.Config.ExchangeId = Guid.NewGuid();
+
+            if (Session.ParentProcess == null)
             {
                 MainWindow.Show();
 
                 var handle = new WindowInteropHelper(this.MainWindow).Handle;//EnsureHandle();
 
-                videoSourceProvider = new VideoSourceProvider();
-                //videoSourceProvider.WindowHandle = handle;//(IntPtr)this.WindowHandle;
+                //videoSourceProvider.WindowHandle = handle;
+               // Session.Config.VideoOutHandle = handle;
+
 
             }
+           
+            vlcPlayback.Start(Session.Config.VideoOutHandle, Session.Config.ExchangeId);
 
-            vlcPlayback.Start(videoSourceProvider);
+
         }
+
 
         private void vlcPlayback_PlaybackChanged(string command, object[] args)
         {
@@ -193,11 +197,11 @@ namespace VlcPlayer
                         if (obj != null)
                         {
                             object[] args = obj as object[];
-                            if (args != null && args.Length>0)
+                            if (args != null && args.Length > 0)
                             {
                                 fileName = args[0]?.ToString();
                             }
-                            
+
                         }
                         vlcPlayback.Play(fileName);
                         //EnqueueCommand("Play", new[] { this.MediaAddr });
@@ -245,7 +249,7 @@ namespace VlcPlayer
                 {
                     quitCommand = new PlaybackCommand(p =>
                     {
-                        Task.Run(() => 
+                        Task.Run(() =>
                         {
                             playbackHost.Quit();
 
@@ -294,7 +298,7 @@ namespace VlcPlayer
                 {
                     muteCommand = new PlaybackCommand(p =>
                     {
-                         vlcPlayback.SetMute(true);
+                        vlcPlayback.SetMute(true);
                     });
                 }
                 return muteCommand;
@@ -327,7 +331,7 @@ namespace VlcPlayer
                     decrVolCommand = new PlaybackCommand(p =>
                     {
                         vlcPlayback.SetVolume(-101);
-                       
+
                     });
                 }
                 return decrVolCommand;
@@ -552,149 +556,9 @@ namespace VlcPlayer
                 }
             }
         }
-
     }
 
 
-    class ImageParams
-    {
-        public readonly int Width = 0;
-        public readonly int Height = 0;
-        public readonly PixelFormat PixelFmt = PixelFormats.Default;
-
-        internal ImageParams(int width, int height, PixelFormat format)
-        {
-            this.Width = width;
-            this.Height = height;
-            this.PixelFmt = format;
-        }
-    }
-
-
-
-    public class VideoSourceProvider : INotifyPropertyChanged
-    {
-        private readonly Dispatcher dispatcher = Dispatcher.CurrentDispatcher;
-        public VideoSourceProvider() { }
-        public VideoSourceProvider(Dispatcher dispatcher)
-        {
-            this.dispatcher = dispatcher;
-        }
-
-        private IntPtr windowHandle;
-
-        public IntPtr WindowHandle
-        {
-            get
-            {
-
-                return this.windowHandle;
-            }
-            set
-            {
-                if (this.windowHandle != value)
-                {
-                    this.windowHandle = value;
-                    this.OnPropertyChanged(nameof(WindowHandle));
-                }
-            }
-        }
-
-        private InteropBitmap interopBitmap = null;
-        private ImageSource videoSource;
-
-        public ImageSource VideoSource
-        {
-            get
-            {
-                
-                return this.videoSource;
-            }
-            set
-            {
-                if (!Object.ReferenceEquals(this.videoSource, value))
-                {
-                    this.videoSource = value;
-                    this.OnPropertyChanged(nameof(VideoSource));
-                }
-            }
-        }
-
-
-
-
-        private MemoryMappedFile mmf = null;
-        private MemoryMappedViewAccessor mmv;
-        private EventWaitHandle ewh = null;
-
-        public void SetupVideo(IntPtr handle, int width, int height, PixelFormat fmt, int pitches, int offset, string memoryId, string eventId)
-        {
-
-            mmf = MemoryMappedFile.OpenExisting(memoryId);
-            ewh = EventWaitHandle.OpenExisting(eventId);
-
-            mmv = mmf.CreateViewAccessor(0, 1024);
-
-            this.dispatcher.Invoke(() =>
-            {
-                VideoSource = Imaging.CreateBitmapSourceFromMemorySection(handle, width, height, fmt, pitches, offset);
-
-            });
-
-            interopBitmap = this.VideoSource as InteropBitmap;
-        }
-
-
-        public void DisplayVideo()
-        {
-            int[] args = new int[5];
-            
-            var count = mmv.ReadArray<int>(0, args, 0, args.Length);
-            if (count > 0)
-            {
-                Debug.WriteLine(string.Join(";", args));
-            }
-
-            this.dispatcher.BeginInvoke(DispatcherPriority.Render,
-                (Action)(() =>
-                {
-                    interopBitmap?.Invalidate();
-                }));
-        }
-
-        public void CleanupVideo()
-        {
-            if (mmf != null)
-            {
-                mmf.Dispose();
-                mmf = null;
-            }
-
-            if (mmv != null)
-            {
-                mmv.Dispose();
-                mmv = null;
-            }
-
-            if (ewh != null)
-            {
-                ewh.Dispose();
-                ewh = null;
-            }
-
-
-            VideoSource = null;
-            interopBitmap = null;
-        }
-
-
-        public event PropertyChangedEventHandler PropertyChanged;
-        private void OnPropertyChanged(string propertyName)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
-
-    }
 
     public class MediaResource
     {

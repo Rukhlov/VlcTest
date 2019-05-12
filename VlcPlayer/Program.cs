@@ -22,11 +22,12 @@ namespace VlcPlayer
             try
             {
                 logger = LogManager.GetCurrentClassLogger();
-                var allocConsole = logger?.Factory?.Configuration?.Variables?.FirstOrDefault(v => v.Key == "AllocConsole");
-                if (allocConsole?.Value?.Text == "true")
-                {
-                    VlcContracts.NativeMethods.AllocConsole();
-                }
+
+                //var allocConsole = logger?.Factory?.Configuration?.Variables?.FirstOrDefault(v => v.Key == "AllocConsole");
+                //if (allocConsole?.Value?.Text == "true")
+                //{
+                //    VlcContracts.NativeMethods.AllocConsole();
+                //}
 
                 logger.Info("========== START ============");
 
@@ -56,33 +57,26 @@ namespace VlcPlayer
 
                 };
 
-                
-                CommandLineOptions = ParseCommandLine(args);
-                if (CommandLineOptions == null)
+
+                Session.Init(args);
+
+                var parentProc = Session.ParentProcess;
+                if (parentProc != null && !parentProc.HasExited)
                 {
-                    CommandLineOptions = new CommandLineOptions();
-                }
-
-                var parentId = CommandLineOptions.ParentId;
-                if (parentId > 0)
-                {                  
-                    ParentProcess = Process.GetProcessById(parentId);
-                    if (ParentProcess != null && !ParentProcess.HasExited)
+                  
+                    parentProc.EnableRaisingEvents = true;
+                    parentProc.Exited += (o, a) =>
                     {
+                        logger.Warn("Parent process exited...");
+                        Quit(playbackHost, -1);
 
-                        ParentProcess.EnableRaisingEvents = true;
-                        ParentProcess.Exited += (o, a) =>
-                        {
-                            logger.Warn("Parent process exited...");
-                            Quit(playbackHost, -1);
-
-                        };
-                    }
-                    else
-                    {
-                        //return -100502;
-                    }
+                    };
                 }
+                else
+                {
+                    //return -100502;
+                }
+                
 
                 logger.Info("============ RUN ===============");
                 playbackHost.Run();
@@ -130,7 +124,7 @@ namespace VlcPlayer
             {
                 code = -2;
 
-                if (ParentWindowHandle == IntPtr.Zero)
+                if (Session.ParentWindowHandle == IntPtr.Zero)
                 {
                     string message = ex.Message;
                     string title = "Error!";
@@ -165,13 +159,46 @@ namespace VlcPlayer
             }
         }
 
-        public static readonly string CurrentDirectory = new System.IO.FileInfo(System.Reflection.Assembly.GetEntryAssembly().Location).DirectoryName;
-        public static readonly System.IO.DirectoryInfo VlcLibDirectory = new System.IO.DirectoryInfo(System.IO.Path.Combine(Program.CurrentDirectory, "libvlc", IntPtr.Size == 4 ? "win-x86" : "win-x64"));
+    }
 
-        public static CommandLineOptions CommandLineOptions { get; private set; }
+
+    public class Session
+    {
+        private static Logger logger = LogManager.GetCurrentClassLogger();
+
+        private Session()
+        { }
+
+        public static readonly string CurrentDirectory = new System.IO.FileInfo(System.Reflection.Assembly.GetEntryAssembly().Location).DirectoryName;
+        public static readonly System.IO.DirectoryInfo VlcLibDirectory = new System.IO.DirectoryInfo(System.IO.Path.Combine(CurrentDirectory, "libvlc", IntPtr.Size == 4 ? "win-x86" : "win-x64"));
+
+
+        private static Session config = null;
+        private static readonly object syncRoot = new object();
+
+        public static Session Config
+        {
+            get
+            {
+                lock (syncRoot)
+                {
+                    if (config == null)
+                    {
+                        config = new Session();
+                    }
+
+                    return config;
+                }
+            }
+        }
+
+        public Guid ExchangeId { get; set; }
+        public IntPtr VideoOutHandle { get; set; }
+
+        public CommandLineOptions Options { get; private set; } = new CommandLineOptions();
+        //public Defaults Defaults { get; private set; } = new Defaults();
 
         public static Process ParentProcess { get; private set; }
-
         public static IntPtr ParentWindowHandle
         {
             get
@@ -184,7 +211,37 @@ namespace VlcPlayer
                 return handle;
             }
         }
+
+        public static void Init(string[] args)
+        {
+            if (args != null)
+            {
+                logger.Info("Command Line String: " + string.Join(" ", args));
+
+                var options = Config.Options;
+                bool res = Parser.Default.ParseArguments(args, options);
+                if (!res)
+                {
+                    // options = null;
+                }
+
+                var parentId = options.ParentId;
+                if (parentId > 0)
+                {
+                    ParentProcess = Process.GetProcessById(parentId);
+                }
+            }
+        }
     }
+
+    //public class Defaults
+    //{
+    //    public readonly static int Width = 1920;
+    //    public readonly static int Height = 1080;
+    //    public System.Windows.Media.PixelFormat PixelFormat = System.Windows.Media.PixelFormats.Bgra32;
+    //    public string VlcAudioOutput = "";
+    //    public string VlcVideoOutput = "";
+    //}
 
     public class CommandLineOptions
     {
@@ -206,6 +263,7 @@ namespace VlcPlayer
         [Option("hwnd")]
         public int WindowHandle { get; set; }
     }
+
 }
 
 

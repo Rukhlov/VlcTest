@@ -45,14 +45,14 @@
         </Grid.RowDefinitions>
         <!--<WindowsFormsHost Name="VlcHost"/>-->
 
-        <Image x:Name="Video" Source="{Binding Session.VideoSource}" 
-               Effect="{Binding Session.BlurEffect}" OpacityMask="Black" Grid.Row="0" Margin="0,0,0,0"  MouseWheel="Video_MouseWheel" >
+        <Image x:Name="Video" Source="{Binding VideoSource}" 
+               Effect="{Binding BlurEffect}" OpacityMask="Black" Grid.Row="0" Margin="0,0,0,0"  MouseWheel="Video_MouseWheel" >
             <!--<Image.Effect>
                 <BlurEffect Radius="{Binding BlurRadius}"/>
             </Image.Effect>-->
         </Image>
 
-        <StackPanel HorizontalAlignment="Left" Margin="10,13,0,0" VerticalAlignment="Top" Background="#7F000000">
+        <StackPanel HorizontalAlignment="Left" Margin="10,13,0,0" VerticalAlignment="Top" Background="#7F000000" Visibility="Hidden">
 
             <Label x:Name ="StatusLabel" Content="{Binding Session.PlaybackState, FallbackValue=---}" VerticalAlignment="Top"  HorizontalAlignment="Left" 
                Foreground="Red" VerticalContentAlignment="Center" HorizontalContentAlignment="Left"

@@ -1,29 +1,16 @@
-﻿using Microsoft.Win32;
-using NLog;
+﻿using NLog;
 using System;
-using System.Collections;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
-using System.IO.MemoryMappedFiles;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Security.AccessControl;
-using System.Security.Principal;
 
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-using System.Windows;
-
-using System.Windows.Data;
-using System.Windows.Input;
-using System.Windows.Interop;
 using System.Windows.Media;
-
-using System.Windows.Media.Effects;
-using System.Windows.Threading;
 
 using Vlc.DotNet.Core;
 using Vlc.DotNet.Core.Interops;
@@ -48,7 +35,7 @@ namespace VlcPlayer
 
         private MrlProvider mrlProvider = null;
 
-        private VideoSourceProvider videoSourceProvider = null;
+        //private VideoSourceProvider videoSourceProvider = null;
 
         private PlaybackState state;
         public PlaybackState State
@@ -208,14 +195,14 @@ namespace VlcPlayer
             EnqueueCommand("Volume", new object[] { vol });
         }
 
-
-        public void Start(VideoSourceProvider provider)
+        Guid exhangeId;
+        public void Start(IntPtr handle, Guid exhangeId)
         {
             try
             {
                 this.State = PlaybackState.Initializing;
+                this.exhangeId = exhangeId;
 
-                this.videoSourceProvider = provider;
 
                 // throw new Exception("Setup()");
 
@@ -237,7 +224,7 @@ namespace VlcPlayer
 
         }
 
-        private void CreatePlayback()
+        private void CreatePlayback(Guid exchangeId)
         {
             //var options = new string[] { ":audio-visual=visual", ":effect-list=spectrum" };
             //var options = new string[] { "--video-filter=transform:sepia", "--sepia-intensity=100", "--transform-type=180" };
@@ -246,11 +233,17 @@ namespace VlcPlayer
 
             // throw new Exception("CreatePlayback");
 
-            var opts = new string[] { "--extraintf=logger", "--verbose=0", "--network-caching=5000" };
-            this.mediaPlayer = CreatePlayer(Program.VlcLibDirectory, opts);
+            var opts = new string[] 
+            {
+               // "--extraintf=logger",
+                //"--verbose=0",
+                //"--network-caching=5000"
+            };
 
-            var handle = videoSourceProvider?.WindowHandle ?? IntPtr.Zero;
+            this.mediaPlayer = CreatePlayer(Session.VlcLibDirectory, opts);
 
+            //var handle = WindowHandle ?? IntPtr.Zero;
+            var handle = Session.Config.VideoOutHandle;
             if (handle != IntPtr.Zero)
             {
                 mediaPlayer.VideoHostControlHandle = handle;
@@ -260,7 +253,7 @@ namespace VlcPlayer
             else
             {
                 videoGrabber = new VlcVideoFrameGrabber(mediaPlayer);
-                videoGrabber.Setup(videoSourceProvider);
+                videoGrabber.Setup(exchangeId);
             }
                 
 
@@ -461,7 +454,7 @@ namespace VlcPlayer
 
                 //throw new Exception(" playbackThread.Start();");
 
-                CreatePlayback();
+                CreatePlayback( exhangeId);
 
                 State = PlaybackState.Initialized;
 
@@ -1400,74 +1393,29 @@ namespace VlcPlayer
             PlaybackChanged?.Invoke(command, args);
         }
 
-        private void SetupVideo(IntPtr handle, int width, int height, PixelFormat fmt, int pitches, int offset, string memoryId, string eventId)
-        {
-
-            videoSourceProvider?.SetupVideo(handle, width, height, fmt, pitches, offset, memoryId, eventId);
-
-            //var _fmt = (fmt == PixelFormats.Bgra32) ?
-            //    System.Drawing.Imaging.PixelFormat.Format32bppArgb :
-            //    System.Drawing.Imaging.PixelFormat.Format32bppRgb;
-
-            //InvokeEventAsync("VideoFormat", new object[] { AppId, width, height, (int)_fmt, pitches });
-        }
-
-
-        private void DisplayVideo()
-        {
-            videoSourceProvider?.DisplayVideo();
-
-            //this.dispatcher.BeginInvoke(DispatcherPriority.Render,
-            //    (Action)(() =>
-            //    {
-            //        interopBitmap?.Invalidate();
-            //    }));
-        }
-
-        private void CleanupVideo()
-        {
-            OnPlaybackChanged("StopDisplay");
-
-            videoSourceProvider?.CleanupVideo();
-
-        }
-
-
+ 
         class VlcVideoFrameGrabber : IDisposable
         {
 
             private readonly VlcMediaPlayer player = null;
-
-            private MemoryMappedFile memoryMappedFile;
-            private MemoryMappedViewAccessor memoryMappedView;
-
-            private VideoSourceProvider videoSourceProvider = null;
-
-            private EventWaitHandle eventWaitHandle = null;
-
-            private bool isAlphaChannelEnabled = true;
-
             public VlcVideoFrameGrabber(VlcMediaPlayer player)
             {
                 this.player = player;
             }
 
-            internal string eventId = "";
-            internal string memoryId = "";
+            private bool isAlphaChannelEnabled = true;
 
-            
-            public void Setup(VideoSourceProvider provider)
+            private SharedBuffer sharedBuf = null;
+
+            public void Setup(Guid ExchangeId)
             {
-                logger.Debug("Setup(...)");
-                Debug.Assert(provider != null, "provider != null");
+                logger.Debug("VlcVideoFrameGrabber::Setup(...)");
 
-                videoSourceProvider = provider;
 
-                memoryId = Guid.NewGuid().ToString("N");
-                this.memoryMappedFile = MemoryMappedFile.CreateNew(memoryId, 30 * 1024 * 1024, MemoryMappedFileAccess.ReadWrite);
+                string bufferName = ExchangeId.ToString("N"); // Guid.NewGuid().ToString("N");
+                int buffrerCapacity = 20 * 1024 * 1024;
 
-                eventId = Guid.NewGuid().ToString("N");
-                this.eventWaitHandle = CreateEventWaitHandle(eventId);
+                sharedBuf = new SharedBuffer(bufferName, buffrerCapacity);
 
                 player.SetVideoFormatCallbacks(this.VideoFormat, this.Cleanup);
                 player.SetVideoCallbacks(LockVideo, null, Display, IntPtr.Zero);
@@ -1475,163 +1423,111 @@ namespace VlcPlayer
 
             }
 
+            //private MemoryMappedFile memoryMappedFile;
+            //private MemoryMappedViewAccessor memoryMappedView;
 
+            private bool initiated = false;
 
-            class VideoBuffer
-            {
-                public readonly string Id = "";
-
-                public VideoBuffer(string id, int width, int height, PixelFormat format)
-                {
-                    if (string.IsNullOrEmpty(id))
-                    {
-                        id = Guid.NewGuid().ToString("N");
-                    }
-
-                    this.Id = id;
-                    this.Width = width;
-                    this.Height = height;
-                    this.PixelFmt = format;
-
-                    uint lines = this.GetAlignedDimension((uint)Height, 32);
-
-                    this.memoryMappedFile = MemoryMappedFile.CreateNew(Id, DataSize, MemoryMappedFileAccess.ReadWrite);
-                    this.memoryMappedView = this.memoryMappedFile.CreateViewAccessor();
-
-                    this.DataPtr = memoryMappedView.SafeMemoryMappedViewHandle.DangerousGetHandle();
-
-                }
-
-                private MemoryMappedFile memoryMappedFile = null;
-                private MemoryMappedViewAccessor memoryMappedView = null;
-               
-                public int Width { get; private set; }
-                public int Height { get; private set; }
-                public PixelFormat PixelFmt { get; private set; }
-
-                public uint Pitches
-                {
-                    get
-                    {
-                        return this.GetAlignedDimension((uint)(Width * PixelFmt.BitsPerPixel) / 8, 32);
-                    }
-                }
-
-                public IntPtr DataPtr { get; private set; }
-                public long DataSize
-                {
-                    get
-                    {
-                        uint lines = this.GetAlignedDimension((uint)Height, 32);
-
-                        return this.Pitches * lines;
-                    }
-                }
-
-
-                private uint GetAlignedDimension(uint dimension, uint mod)
-                {
-                    var modResult = dimension % mod;
-                    if (modResult == 0)
-                    {
-                        return dimension;
-                    }
-
-                    return dimension + mod - (dimension % mod);
-                }
-
-
-                private static System.Windows.Media.PixelFormat ToPixelFormat(System.Drawing.Imaging.PixelFormat sourceFormat)
-                {
-                    switch (sourceFormat)
-                    {
-                        case System.Drawing.Imaging.PixelFormat.Format24bppRgb:
-                            return PixelFormats.Bgr24;
-
-                        case System.Drawing.Imaging.PixelFormat.Format32bppArgb:
-                            return PixelFormats.Bgra32;
-
-                        case System.Drawing.Imaging.PixelFormat.Format32bppRgb:
-                            return PixelFormats.Bgr32;
-
-                    }
-                    return new System.Windows.Media.PixelFormat();
-                }
-
-                private static System.Drawing.Imaging.PixelFormat ToGdiPixelFormat(System.Windows.Media.PixelFormat sourceFormat)
-                {
-                    System.Drawing.Imaging.PixelFormat format = System.Drawing.Imaging.PixelFormat.Undefined;
-                    if (sourceFormat == PixelFormats.Bgr24)
-                    {
-                        format = System.Drawing.Imaging.PixelFormat.Format24bppRgb;
-                    }
-                    else if (sourceFormat == PixelFormats.Bgra32)
-                    {
-                        format = System.Drawing.Imaging.PixelFormat.Format32bppArgb;
-                    }
-                    else if (sourceFormat == PixelFormats.Bgr32)
-                    {
-                        format = System.Drawing.Imaging.PixelFormat.Format32bppRgb;
-                    }
-                    return format;
-                }
-
-                public void Dispose()
-                {
-                    memoryMappedFile?.Dispose();
-                    memoryMappedView?.Dispose();
-
-                    DataPtr = IntPtr.Zero;
-                }
-            }
-
-
-            private VideoBuffer videoBuffer = null;
-            private unsafe uint _VideoFormat(out IntPtr userdata, IntPtr chroma, ref uint width, ref uint height, ref uint pitches, ref uint lines)
+            private uint VideoFormat(out IntPtr userdata, IntPtr chroma, ref uint width, ref uint height, ref uint pitches, ref uint lines)
             {
                 FourCCConverter.ToFourCC("RV32", chroma);
 
-                PixelFormat pixelFormat = isAlphaChannelEnabled ? PixelFormats.Bgra32 : PixelFormats.Bgr32;
+                var fmt = isAlphaChannelEnabled ? PixelFormats.Bgra32 : PixelFormats.Bgr32;
 
-                videoBuffer = new VideoBuffer("", (int)width, (int)height, pixelFormat);
-                userdata = videoBuffer.DataPtr;
+                pitches = VideoHelper.GetAlignedDimension((uint)(width * fmt.BitsPerPixel) / 8, 32);
+                lines = VideoHelper.GetAlignedDimension(height, 32);
+
+                var dataLenght = pitches * lines;
+                int dataOffset = 1024;
+
+
+                //this.memoryMappedFile = MemoryMappedFile.CreateNew(null, dataLenght);
+                //var handle = this.memoryMappedFile.SafeMemoryMappedFileHandle.DangerousGetHandle();
+
+                //this.memoryMappedView = this.memoryMappedFile.CreateViewAccessor();
+                //var viewHandle = this.memoryMappedView.SafeMemoryMappedViewHandle.DangerousGetHandle();
+                //userdata = viewHandle;
+
+                if (sharedBuf.Capacity < dataLenght + dataOffset)
+                {
+                    //...
+                }
+
+                userdata = IntPtr.Add(sharedBuf.Data, dataOffset);
+
+                VideoBufferInfo vi = new VideoBufferInfo
+                {
+                    State = VideoBufferState.Setup,
+                    Width = (int)width,
+                    Height = (int)height,
+                    Pitches = pitches,
+                    PixelFormat = fmt,
+                    DataOffset = dataOffset,
+                    DataLenght = dataLenght,
+                };
+
+                logger.Debug("VideoFormat: " + vi.ToString());
+
+                sharedBuf.WriteData(vi);
+                sharedBuf.Pulse();
+
                 initiated = true;
 
                 return 1;
             }
 
-            private void _Display(IntPtr userdata, IntPtr picture)
+
+            private IntPtr LockVideo(IntPtr opaque, IntPtr planes)
+            {
+                Marshal.WriteIntPtr(planes, opaque);
+                //return IntPtr.Zero;
+
+                return opaque;
+
+            }
+            private void Display(IntPtr userdata, IntPtr picture)
             {
                 if (initiated)
                 {
                     initiated = false;
 
-                    //videoSourceProvider.SetupVideo();
+                    sharedBuf.WriteData(VideoBufferState.Display);
                 }
 
-                videoSourceProvider.DisplayVideo();
+                sharedBuf.Pulse();
             }
 
-            private void _Cleanup(ref IntPtr userdata)
+            private void Cleanup(ref IntPtr userdata)
             {
                 logger.Debug("CleanupVideo(...)");
 
+                sharedBuf.WriteData(VideoBufferState.Cleanup);
+                sharedBuf.Pulse();
+
                 if (!disposedValue)
                 {
-                    this._RemoveVideo();
+                    this.RemoveVideo();
                 }
 
                 initiated = false;
-
             }
 
-            private void _RemoveVideo()
+            private void RemoveVideo()
             {
                 logger.Debug("RemoveVideo(...)");
-                videoBuffer?.Dispose();
+
+
+                //this.memoryMappedView?.Dispose();
+                //this.memoryMappedView = null;
+
+                //this.memoryMappedFile?.Dispose();
+                //this.memoryMappedFile = null;
             }
 
-            private unsafe uint VideoFormat(out IntPtr userdata, IntPtr chroma, ref uint width, ref uint height, ref uint pitches, ref uint lines)
+
+            /*
+
+            private unsafe uint _VideoFormat(out IntPtr userdata, IntPtr chroma, ref uint width, ref uint height, ref uint pitches, ref uint lines)
             {
                 logger.Debug("VideoFormat(...) " + eventId + " chroma " + chroma + " width " + width + " height " + height + " pitches " + pitches + " lines " + lines);
 
@@ -1639,8 +1535,6 @@ namespace VlcPlayer
 
                 // FourCCConverter.ToFourCC("BGRA", chroma);
                 FourCCConverter.ToFourCC("RV32", chroma);
-
-
 
 
                 pitches = this.GetAlignedDimension((uint)(width * pixelFormat.BitsPerPixel) / 8, 32);
@@ -1685,8 +1579,6 @@ namespace VlcPlayer
 
                 var handle = this.memoryMappedFile.SafeMemoryMappedFileHandle.DangerousGetHandle();
 
-                videoSourceProvider.SetupVideo(videoBuffer.DataPtr, (int)width, (int)height, pixelFormat, (int)pitches, (int)offset, memoryId, eventId);
-
 
                 //memoryMappedView.Dispose();
                 //memoryMappedFile.Dispose();
@@ -1699,7 +1591,7 @@ namespace VlcPlayer
             /// Called by Vlc when it requires a cleanup
             /// </summary>
             /// <param name="userdata">The parameter is not used</param>
-            private void Cleanup(ref IntPtr userdata)
+            private void _Cleanup(ref IntPtr userdata)
             {
                 logger.Debug("CleanupVideo(...)");
 
@@ -1721,26 +1613,14 @@ namespace VlcPlayer
 
             }
 
-            /// <summary>
-            /// Called by libvlc when it wants to acquire a buffer where to write
-            /// </summary>
-            /// <param name="userdata">The pointer to the buffer (the out parameter of the <see cref="VideoFormat"/> callback)</param>
-            /// <param name="planes">The pointer to the planes array. Since only one plane has been allocated, the array has only one value to be allocated.</param>
-            /// <returns>The pointer that is passed to the other callbacks as a picture identifier, this is not used</returns>
-            private IntPtr LockVideo(IntPtr userdata, IntPtr planes)
-            {
-                Marshal.WriteIntPtr(planes, userdata);
-                return userdata;
 
-            }
 
-            private bool initiated = false;
             /// <summary>
             /// Called by libvlc when the picture has to be displayed.
             /// </summary>
             /// <param name="userdata">The pointer to the buffer (the out parameter of the <see cref="VideoFormat"/> callback)</param>
             /// <param name="picture">The pointer returned by the <see cref="LockVideo"/> callback. This is not used.</param>
-            private void Display(IntPtr userdata, IntPtr picture)
+            private void _Display(IntPtr userdata, IntPtr picture)
             {
                 if (initiated)
                 {
@@ -1758,23 +1638,22 @@ namespace VlcPlayer
 
                 eventWaitHandle?.Set();
 
-                videoSourceProvider.DisplayVideo();
             }
 
 
             /// <summary>
             /// Removes the video (must be called from the Dispatcher thread)
             /// </summary>
-            private void RemoveVideo()
+            private void _RemoveVideo()
             {
                 logger.Debug("RemoveVideo(...)");
 
-                videoBuffer?.Dispose();
+                //videoBuffer?.Dispose();
 
                 //this.VideoSource = null;
 
-                this.memoryMappedView?.Dispose();
-                this.memoryMappedView = null;
+                //this.memoryMappedView?.Dispose();
+                //this.memoryMappedView = null;
 
 
 
@@ -1785,7 +1664,6 @@ namespace VlcPlayer
                 //this.globalSyncEvent = null;
 
             }
-
 
             private EventWaitHandle CreateEventWaitHandle(string eventId)
             {
@@ -1805,6 +1683,9 @@ namespace VlcPlayer
 
                 return handle;
             }
+            */
+
+
 
             private uint GetAlignedDimension(uint dimension, uint mod)
             {
@@ -1817,13 +1698,7 @@ namespace VlcPlayer
                 return dimension + mod - (dimension % mod);
             }
 
-            #region IDisposable Support
             private bool disposedValue = false;
-
-            /// <summary>
-            /// Disposes the control.
-            /// </summary>
-            /// <param name="disposing">The parameter is not used.</param>
             protected virtual void Dispose(bool disposing)
             {
                 logger.Debug("Dispose(...)");
@@ -1833,33 +1708,77 @@ namespace VlcPlayer
 
                     RemoveVideo();
 
-                    this.memoryMappedFile?.Dispose();
-                    this.memoryMappedFile = null;
-
-                    eventWaitHandle?.Dispose();
-
-                    // this.dispatcher.BeginInvoke((Action)this.RemoveVideo);
+                    sharedBuf?.Dispose();
                 }
             }
 
-            /// <summary>
-            /// The destructor
-            /// </summary>
+
             ~VlcVideoFrameGrabber()
             {
                 Dispose(false);
             }
 
-            /// <inheritdoc />
+
             public void Dispose()
             {
                 Dispose(true);
                 GC.SuppressFinalize(this);
             }
-            #endregion
 
         }// VideoFrameGrabber
 
+
+        class VideoHelper
+        {
+            public const int HeaderSize = 1024;
+
+            public static uint GetAlignedDimension(uint dimension, uint mod)
+            {
+                var modResult = dimension % mod;
+                if (modResult == 0)
+                {
+                    return dimension;
+                }
+
+                return dimension + mod - (dimension % mod);
+            }
+
+
+            public static System.Windows.Media.PixelFormat ToPixelFormat(System.Drawing.Imaging.PixelFormat sourceFormat)
+            {
+                switch (sourceFormat)
+                {
+                    case System.Drawing.Imaging.PixelFormat.Format24bppRgb:
+                        return PixelFormats.Bgr24;
+
+                    case System.Drawing.Imaging.PixelFormat.Format32bppArgb:
+                        return PixelFormats.Bgra32;
+
+                    case System.Drawing.Imaging.PixelFormat.Format32bppRgb:
+                        return PixelFormats.Bgr32;
+
+                }
+                return new System.Windows.Media.PixelFormat();
+            }
+
+            public static System.Drawing.Imaging.PixelFormat ToGdiPixelFormat(System.Windows.Media.PixelFormat sourceFormat)
+            {
+                System.Drawing.Imaging.PixelFormat format = System.Drawing.Imaging.PixelFormat.Undefined;
+                if (sourceFormat == PixelFormats.Bgr24)
+                {
+                    format = System.Drawing.Imaging.PixelFormat.Format24bppRgb;
+                }
+                else if (sourceFormat == PixelFormats.Bgra32)
+                {
+                    format = System.Drawing.Imaging.PixelFormat.Format32bppArgb;
+                }
+                else if (sourceFormat == PixelFormats.Bgr32)
+                {
+                    format = System.Drawing.Imaging.PixelFormat.Format32bppRgb;
+                }
+                return format;
+            }
+        }
 
         class MrlProvider
         {

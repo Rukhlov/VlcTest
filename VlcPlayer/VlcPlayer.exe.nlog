@@ -1,6 +1,6 @@
 ﻿<?xml version="1.0" encoding="utf-8" ?>
 <nlog xmlns="http://www.nlog-project.org/schemas/NLog.xsd"
-      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" internalLogFile="NlogInternal.txt" internalLogLevel="Error">
+      xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" internalLogFile="NlogInternal.txt" internalLogLevel="ERROR">
 
   <variable name="AllocConsole" value="true"/>
   <!--<variable name="AllocConsole" value="true"/>-->
@@ -18,7 +18,7 @@
       <highlight-row condition="level == LogLevel.Error" foregroundColor="Red" />
       <highlight-row condition="level == LogLevel.Fatal" foregroundColor="Red" backgroundColor="White" />
     </target>
-
+    
     <target name="debugout" xsi:type="Debugger" />
 
     <target name="file" xsi:type="File" layout="${message}" fileName="${LogDirectory}/log.txt" />
