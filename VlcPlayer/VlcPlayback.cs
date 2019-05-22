@@ -37,6 +37,10 @@ namespace VlcPlayer
 
         //private VideoSourceProvider videoSourceProvider = null;
 
+        public IntPtr VideoHostControlHandle { get; private set; }
+        private SharedBuffer videoBuffer = null;
+
+
         private PlaybackState state;
         public PlaybackState State
         {
@@ -195,6 +199,9 @@ namespace VlcPlayer
             EnqueueCommand("Volume", new object[] { vol });
         }
 
+        
+
+
         Guid exhangeId;
         public void Start(IntPtr handle, Guid exhangeId)
         {
@@ -224,6 +231,24 @@ namespace VlcPlayer
 
         }
 
+
+        public void SetVideoHostHandle(IntPtr hWnd)
+        {
+            logger.Debug("SetVideoHostHandle(...)");
+
+            this.VideoHostControlHandle = hWnd;
+        }
+
+        public void SetOutputVideoToBuffer(SharedBuffer buffer)
+        {
+
+            logger.Debug("SetOutputVideoToBuffer(...)");
+            if (buffer != null)
+            {
+                this.videoBuffer = buffer;
+            }
+        }
+
         private void CreatePlayback(Guid exchangeId)
         {
             //var options = new string[] { ":audio-visual=visual", ":effect-list=spectrum" };
@@ -243,17 +268,19 @@ namespace VlcPlayer
             this.mediaPlayer = CreatePlayer(Session.VlcLibDirectory, opts);
 
             //var handle = WindowHandle ?? IntPtr.Zero;
-            var handle = Session.Config.VideoOutHandle;
-            if (handle != IntPtr.Zero)
+            //var handle = Session.Config.VideoOutHandle;
+
+            if (this.VideoHostControlHandle != IntPtr.Zero)
             {
-                mediaPlayer.VideoHostControlHandle = handle;
+                mediaPlayer.VideoHostControlHandle = this.VideoHostControlHandle;
 
                 logger.Info("mediaPlayer.VideoHostControlHandle " + mediaPlayer.VideoHostControlHandle);
             }
-            else
+
+            if (this.videoBuffer != null)
             {
-                videoGrabber = new VlcVideoFrameGrabber(mediaPlayer);
-                videoGrabber.Setup(exchangeId);
+                videoGrabber = new VlcVideoFrameGrabber(this);
+                videoGrabber.Setup();
             }
                 
 
@@ -1398,33 +1425,37 @@ namespace VlcPlayer
         {
 
             private readonly VlcMediaPlayer player = null;
-            public VlcVideoFrameGrabber(VlcMediaPlayer player)
-            {
-                this.player = player;
+
+            private readonly VlcPlayback playback = null;
+            private readonly SharedBuffer sharedBuf = null;
+            public VlcVideoFrameGrabber(VlcPlayback playback)
+            {              
+                this.playback = playback;
+
+                this.player = playback.mediaPlayer;
+                this.sharedBuf = playback.videoBuffer;
             }
 
-            private bool isAlphaChannelEnabled = true;
 
-            private SharedBuffer sharedBuf = null;
+            
+            private bool isAlphaChannelEnabled = false; //true; high CPU usage !!!
 
-            public void Setup(Guid ExchangeId)
+   
+            public void Setup()
             {
                 logger.Debug("VlcVideoFrameGrabber::Setup(...)");
 
+                //string bufferName = ExchangeId.ToString("N"); // Guid.NewGuid().ToString("N");
+                //int buffrerCapacity = 40 * 1024 * 1024;
 
-                string bufferName = ExchangeId.ToString("N"); // Guid.NewGuid().ToString("N");
-                int buffrerCapacity = 20 * 1024 * 1024;
+                //sharedBuf = new SharedBuffer(bufferName, buffrerCapacity);
 
-                sharedBuf = new SharedBuffer(bufferName, buffrerCapacity);
 
                 player.SetVideoFormatCallbacks(this.VideoFormat, this.Cleanup);
                 player.SetVideoCallbacks(LockVideo, null, Display, IntPtr.Zero);
                               
 
             }
-
-            //private MemoryMappedFile memoryMappedFile;
-            //private MemoryMappedViewAccessor memoryMappedView;
 
             private bool initiated = false;
 
@@ -1434,19 +1465,11 @@ namespace VlcPlayer
 
                 var fmt = isAlphaChannelEnabled ? PixelFormats.Bgra32 : PixelFormats.Bgr32;
 
-                pitches = VideoHelper.GetAlignedDimension((uint)(width * fmt.BitsPerPixel) / 8, 32);
-                lines = VideoHelper.GetAlignedDimension(height, 32);
+                pitches = GetAlignedDimension((uint)(width * fmt.BitsPerPixel) / 8, 32);
+                lines = GetAlignedDimension(height, 32);
 
                 var dataLenght = pitches * lines;
                 int dataOffset = 1024;
-
-
-                //this.memoryMappedFile = MemoryMappedFile.CreateNew(null, dataLenght);
-                //var handle = this.memoryMappedFile.SafeMemoryMappedFileHandle.DangerousGetHandle();
-
-                //this.memoryMappedView = this.memoryMappedFile.CreateViewAccessor();
-                //var viewHandle = this.memoryMappedView.SafeMemoryMappedViewHandle.DangerousGetHandle();
-                //userdata = viewHandle;
 
                 if (sharedBuf.Capacity < dataLenght + dataOffset)
                 {
@@ -1516,17 +1539,11 @@ namespace VlcPlayer
             {
                 logger.Debug("RemoveVideo(...)");
 
-
-                //this.memoryMappedView?.Dispose();
-                //this.memoryMappedView = null;
-
-                //this.memoryMappedFile?.Dispose();
-                //this.memoryMappedFile = null;
             }
 
 
-            /*
 
+            /*
             private unsafe uint _VideoFormat(out IntPtr userdata, IntPtr chroma, ref uint width, ref uint height, ref uint pitches, ref uint lines)
             {
                 logger.Debug("VideoFormat(...) " + eventId + " chroma " + chroma + " width " + width + " height " + height + " pitches " + pitches + " lines " + lines);
@@ -1687,51 +1704,6 @@ namespace VlcPlayer
 
 
 
-            private uint GetAlignedDimension(uint dimension, uint mod)
-            {
-                var modResult = dimension % mod;
-                if (modResult == 0)
-                {
-                    return dimension;
-                }
-
-                return dimension + mod - (dimension % mod);
-            }
-
-            private bool disposedValue = false;
-            protected virtual void Dispose(bool disposing)
-            {
-                logger.Debug("Dispose(...)");
-                if (!disposedValue)
-                {
-                    disposedValue = true;
-
-                    RemoveVideo();
-
-                    sharedBuf?.Dispose();
-                }
-            }
-
-
-            ~VlcVideoFrameGrabber()
-            {
-                Dispose(false);
-            }
-
-
-            public void Dispose()
-            {
-                Dispose(true);
-                GC.SuppressFinalize(this);
-            }
-
-        }// VideoFrameGrabber
-
-
-        class VideoHelper
-        {
-            public const int HeaderSize = 1024;
-
             public static uint GetAlignedDimension(uint dimension, uint mod)
             {
                 var modResult = dimension % mod;
@@ -1778,7 +1750,36 @@ namespace VlcPlayer
                 }
                 return format;
             }
-        }
+
+            private bool disposedValue = false;
+            protected virtual void Dispose(bool disposing)
+            {
+                logger.Debug("Dispose(...)");
+                if (!disposedValue)
+                {
+                    disposedValue = true;
+
+                    RemoveVideo();
+
+                    //sharedBuf?.Dispose();
+                }
+            }
+
+
+            ~VlcVideoFrameGrabber()
+            {
+                Dispose(false);
+            }
+
+
+            public void Dispose()
+            {
+                Dispose(true);
+                GC.SuppressFinalize(this);
+            }
+
+        }// VideoFrameGrabber
+
 
         class MrlProvider
         {

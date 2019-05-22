@@ -95,8 +95,13 @@ namespace VlcPlayer
             }
             _shown = true;
 
+            var videoBuffer = Controller?.VideoBuffer;
+            if (videoBuffer != null)
+            {
 
-            videoSourceProvider.Run(Session.Config.ExchangeId);
+                videoSourceProvider.Run(videoBuffer);
+            }
+
 
         }
 
@@ -140,30 +145,34 @@ namespace VlcPlayer
             this.dispatcher = image.Dispatcher;
         }
 
-
-        public IntPtr WindowHandle { get; set; }
-
         private InteropBitmap interopBitmap = null;
 
-        private EventWaitHandle syncEvent = null;
+        private SharedBuffer videoBuffer = null;
 
-        private SharedBuffer sharedBuf = null;
-        public void Run(Guid ExchangeId)
+        public void Run(SharedBuffer buffer)
         {
-            closing = false;
 
-            logger.Debug("Run(...) " + ExchangeId);
+            if(buffer == null)
+            {
+                return;
+            }
+
+            this.videoBuffer = buffer;
+
+            logger.Debug("Run(...) " + videoBuffer.Name);
+
+            closing = false;
 
             Task task = Task.Run(() =>
             {
                 logger.Debug("Render task started...");
 
-                sharedBuf = new SharedBuffer(ExchangeId.ToString("N"), 40 * 1024 * 1024);
+                //sharedBuf = new SharedBuffer(ExchangeId.ToString("N"));
 
                 try
                 {
 
-                    sharedBuf.WaitForSignal();
+                    buffer.WaitForSignal();
 
                     bool started = false;
 
@@ -172,7 +181,7 @@ namespace VlcPlayer
                     while (!closing)
                     {
 
-                        vi = sharedBuf.ReadData<VideoBufferInfo>();
+                        vi = buffer.ReadData<VideoBufferInfo>();
 
                         if (vi.State ==  VideoBufferState.Display)
                         {
@@ -194,7 +203,7 @@ namespace VlcPlayer
                                         if (width > 0 && height > 0 && pitches > 0) // TODO: validate...
                                         {
         
-                                            interopBitmap = (InteropBitmap)Imaging.CreateBitmapSourceFromMemorySection(sharedBuf.Section, width, height, fmt, pitches, offset);
+                                            interopBitmap = (InteropBitmap)Imaging.CreateBitmapSourceFromMemorySection(buffer.Section, width, height, fmt, pitches, offset);
 
                                             image.Source = interopBitmap;
 
@@ -232,12 +241,17 @@ namespace VlcPlayer
                         else
                         {
                             started = false;
+
+                            dispatcher.Invoke(() =>
+                            {
+                                image.Source = null;
+                            });
                         }
 
-                        sharedBuf.WaitForSignal(1000);
+                        buffer.WaitForSignal(1000);
                     }
 
-                    sharedBuf.Dispose();
+                    //buffer.Dispose();
 
                 }
                 catch (Exception ex)
@@ -251,6 +265,8 @@ namespace VlcPlayer
 
         }
 
+
+        /*
         public void _Run(Guid ExchangeId)
         {
             closing = false;
@@ -398,7 +414,9 @@ namespace VlcPlayer
 
             });
 
-        }
+        }*/
+
+
 
         private bool closing = false;
         public void Close()
@@ -408,7 +426,9 @@ namespace VlcPlayer
 
             closing = true;
 
-            syncEvent?.Set();
+            videoBuffer?.Pulse();
+
+            //syncEvent?.Set();
         }
 
 

@@ -8,6 +8,7 @@ using System.Windows.Input;
 using System.Windows.Interop;
 using System.Windows.Media.Effects;
 using System.Windows.Threading;
+using VlcContracts;
 
 namespace VlcPlayer
 {
@@ -63,8 +64,8 @@ namespace VlcPlayer
 
         public void OnReceiveCommand(string command, object[] args)
         {
-            //...
 
+            //...
             playbackController?.ProcessCommand(command, args);
         }
 
@@ -86,6 +87,8 @@ namespace VlcPlayer
         }
     }
 
+
+
     public class PlaybackController : INotifyPropertyChanged
     {
         private static NLog.Logger logger = NLog.LogManager.GetCurrentClassLogger();
@@ -100,7 +103,8 @@ namespace VlcPlayer
         }
 
         private VlcPlayback vlcPlayback = null;
-       
+
+        public SharedBuffer VideoBuffer { get; private set; }
 
         public void Start()
         {
@@ -125,14 +129,24 @@ namespace VlcPlayer
             {
                 MainWindow.Show();
 
-                var handle = new WindowInteropHelper(this.MainWindow).Handle;//EnsureHandle();
+                var handle = new WindowInteropHelper(this.MainWindow).Handle; //EnsureHandle();
 
-                //videoSourceProvider.WindowHandle = handle;
-               // Session.Config.VideoOutHandle = handle;
-
-
+                if (handle != IntPtr.Zero)
+                {
+                    vlcPlayback.SetVideoHostHandle(handle);
+                }
             }
-           
+
+            var exchangeId = Session.Config.ExchangeId;
+            if (exchangeId != Guid.Empty)
+            {
+                string bufferName = Session.Config.ExchangeId.ToString("N");
+                int buffrerCapacity = 40 * 1024 * 1024;
+                this.VideoBuffer = new SharedBuffer(bufferName, buffrerCapacity);
+                vlcPlayback.SetOutputVideoToBuffer(VideoBuffer);
+            }
+
+
             vlcPlayback.Start(Session.Config.VideoOutHandle, Session.Config.ExchangeId);
 
 
@@ -156,14 +170,8 @@ namespace VlcPlayer
                 vlcPlayback.Close();
             }
 
-            //try
-            //{
-            //}
-            //catch (Exception ex)
-            //{
-            //    logger.Fatal(ex);
-            //    Process.GetCurrentProcess().Kill();
-            //}
+            VideoBuffer?.Dispose();
+
         }
 
 
@@ -201,8 +209,8 @@ namespace VlcPlayer
                             {
                                 fileName = args[0]?.ToString();
                             }
-
                         }
+
                         vlcPlayback.Play(fileName);
                         //EnqueueCommand("Play", new[] { this.MediaAddr });
 
@@ -212,6 +220,8 @@ namespace VlcPlayer
                 return playCommand;
             }
         }
+
+
 
         private ICommand stopCommand = null;
         public ICommand StopCommand
@@ -321,6 +331,8 @@ namespace VlcPlayer
             }
         }
 
+
+
         private ICommand decrVolCommand = null;
         public ICommand DecrVolCommand
         {
@@ -337,7 +349,6 @@ namespace VlcPlayer
                 return decrVolCommand;
             }
         }
-
 
 
         private BlurEffect blurEffect = new BlurEffect { Radius = 0 };
@@ -560,10 +571,6 @@ namespace VlcPlayer
 
 
 
-    public class MediaResource
-    {
-
-    }
 
     public class PlaybackStatistics : INotifyPropertyChanged
     {

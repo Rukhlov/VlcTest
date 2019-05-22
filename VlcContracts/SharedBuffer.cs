@@ -51,7 +51,10 @@ namespace VlcContracts
         private readonly string memoryName = "";
         private readonly string eventName = "";
 
-        public SharedBuffer(string name, long capacity)
+        public SharedBuffer(string name) : this(name, 40 * 1024 * 1024)
+        { }
+
+        public SharedBuffer(string name, long capacity) 
         {
             this.Name = name;
 
@@ -78,6 +81,7 @@ namespace VlcContracts
                 return mmva?.Capacity ?? -1;
             }
         }
+
 
         private void Construct(long capacity)
         {
