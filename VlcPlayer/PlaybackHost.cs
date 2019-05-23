@@ -137,21 +137,35 @@ namespace VlcPlayer
                 }
             }
 
-            var exchangeId = Session.Config.ExchangeId;
-            if (exchangeId != Guid.Empty)
+            var videoBufferId = Session.Config.ExchangeId;
+            if (videoBufferId != Guid.Empty)
             {
                 string bufferName = Session.Config.ExchangeId.ToString("N");
-                int buffrerCapacity = 40 * 1024 * 1024;
+
+                int headerSize = 1024;
+                VideoBufferInfo videoInfo = new VideoBufferInfo
+                {
+                    Width = 1920,
+                    Height = 1080,
+                    PixelFormat = System.Windows.Media.PixelFormats.Bgr32,
+                    DataOffset = headerSize,
+                    
+                };
+
+                var videoSize = VideoUtils.EstimateVideoSize(videoInfo.Width, videoInfo.Height, videoInfo.PixelFormat);
+
+                int buffrerCapacity = videoSize + headerSize;
+
                 this.VideoBuffer = new SharedBuffer(bufferName, buffrerCapacity);
+                this.VideoBuffer.WriteData(videoInfo);
+
                 vlcPlayback.SetOutputVideoToBuffer(VideoBuffer);
             }
 
 
-            vlcPlayback.Start(Session.Config.VideoOutHandle, Session.Config.ExchangeId);
-
+            vlcPlayback.Start();
 
         }
-
 
         private void vlcPlayback_PlaybackChanged(string command, object[] args)
         {

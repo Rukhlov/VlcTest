@@ -42,19 +42,84 @@ namespace VlcContracts
         }
     }
 
+    public class VideoUtils
+    {
+
+        public static int EstimateVideoSize(int width, int height, PixelFormat fmt)
+        {
+            int size = 0;
+            if (fmt == PixelFormats.Bgra32 || fmt == PixelFormats.Bgr32)
+            {
+                var pitches = GetAlignedDimension((uint)(width * fmt.BitsPerPixel) / 8, 32);
+                var lines = GetAlignedDimension((uint)height, 32);
+                size = (int)(pitches * lines);
+            }
+
+            return size;
+        }
+
+        public static uint GetAlignedDimension(uint dimension, uint mod)
+        {
+            var modResult = dimension % mod;
+            if (modResult == 0)
+            {
+                return dimension;
+            }
+
+            return dimension + mod - (dimension % mod);
+        }
+
+
+        public static PixelFormat ToPixelFormat(System.Drawing.Imaging.PixelFormat sourceFormat)
+        {
+            switch (sourceFormat)
+            {
+                case System.Drawing.Imaging.PixelFormat.Format24bppRgb:
+                    return PixelFormats.Bgr24;
+
+                case System.Drawing.Imaging.PixelFormat.Format32bppArgb:
+                    return PixelFormats.Bgra32;
+
+                case System.Drawing.Imaging.PixelFormat.Format32bppRgb:
+                    return PixelFormats.Bgr32;
+
+            }
+            return new PixelFormat();
+        }
+
+        public static System.Drawing.Imaging.PixelFormat ToGdiPixelFormat(PixelFormat sourceFormat)
+        {
+            System.Drawing.Imaging.PixelFormat format = System.Drawing.Imaging.PixelFormat.Undefined;
+            if (sourceFormat == PixelFormats.Bgr24)
+            {
+                format = System.Drawing.Imaging.PixelFormat.Format24bppRgb;
+            }
+            else if (sourceFormat == PixelFormats.Bgra32)
+            {
+                format = System.Drawing.Imaging.PixelFormat.Format32bppArgb;
+            }
+            else if (sourceFormat == PixelFormats.Bgr32)
+            {
+                format = System.Drawing.Imaging.PixelFormat.Format32bppRgb;
+            }
+            return format;
+        }
+    }
 
     public class SharedBuffer
     {
-        public readonly string Name = Guid.NewGuid().ToString("N");
+        public string Name { get; private set; }
 
-        private readonly string mutexName = "";
-        private readonly string memoryName = "";
-        private readonly string eventName = "";
+        private string mutexName = "";
+        private string memoryName = "";
+        private string eventName = "";
 
-        public SharedBuffer(string name) : this(name, 40 * 1024 * 1024)
+        public SharedBuffer() { }
+
+        public SharedBuffer(string name) : this(name, 10 * 1024 * 1024)
         { }
 
-        public SharedBuffer(string name, long capacity) 
+        public SharedBuffer(string name, long capacity)
         {
             this.Name = name;
 
@@ -62,7 +127,7 @@ namespace VlcContracts
             this.memoryName = Name + "-memory";
             this.eventName = Name + "-event";
 
-            Construct(capacity);
+            Create(capacity);
         }
 
         private Mutex mutex = null;
@@ -83,13 +148,17 @@ namespace VlcContracts
         }
 
 
-        private void Construct(long capacity)
+        private void Create(long capacity)
         {
 
             try
             {
                 bool created = false;
                 mutex = new Mutex(false, mutexName, out created);
+                if (!created)
+                {
+                    //...
+                }
 
                 {//EventWaitHandle
                     var users = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
@@ -99,10 +168,15 @@ namespace VlcContracts
                     var security = new EventWaitHandleSecurity();
                     security.AddAccessRule(rule);
                     ewh = new EventWaitHandle(false, EventResetMode.AutoReset, eventName, out created);
+
+                    if (!created)
+                    {
+                        //...
+                    }
                 }
 
 
-                mmf = MemoryMappedFile.CreateOrOpen(memoryName, capacity, MemoryMappedFileAccess.ReadWrite);
+                mmf = MemoryMappedFile.CreateNew(memoryName, capacity, MemoryMappedFileAccess.ReadWrite);
                 Section = mmf.SafeMemoryMappedFileHandle.DangerousGetHandle();
 
                 mmva = mmf.CreateViewAccessor(0, 0);
@@ -118,6 +192,76 @@ namespace VlcContracts
 
         }
 
+        public static bool TryOpenExisting(string name, out SharedBuffer buffer)
+        {
+            buffer = null;
+            try
+            {
+                buffer = OpenExisting(name);
+
+            }
+            catch (Exception ex) { }
+
+            return (buffer != null);
+
+        }
+
+        public static SharedBuffer OpenExisting(string name)
+        {
+            SharedBuffer buffer = null;
+
+            Mutex _mutex = null;
+            EventWaitHandle _ewh = null;
+            MemoryMappedFile _mmf = null;
+            MemoryMappedViewAccessor _mmva = null;
+            try
+            {
+                var _mutexName = name + "-mutex";
+                var _memoryName = name + "-memory";
+                var _eventName = name + "-event";
+
+                _mutex = Mutex.OpenExisting(_mutexName);
+
+                var rights = EventWaitHandleRights.Synchronize | EventWaitHandleRights.Modify;
+                _ewh = EventWaitHandle.OpenExisting(_eventName, rights);
+
+
+                _mmf = MemoryMappedFile.OpenExisting(_memoryName);
+                var _section = _mmf.SafeMemoryMappedFileHandle.DangerousGetHandle();
+
+                _mmva = _mmf.CreateViewAccessor(0, 0);
+                var _data = _mmva.SafeMemoryMappedViewHandle.DangerousGetHandle();
+
+                buffer = new SharedBuffer
+                {
+                    Name = name,
+                    mutexName = _mutexName,
+                    memoryName = _memoryName,
+                    eventName = _eventName,
+
+                    mutex = _mutex,
+                    ewh = _ewh,
+                    mmf = _mmf,
+                    mmva = _mmva,
+
+                    Section = _section,
+                    Data = _data,
+
+                };
+            }
+            catch (Exception ex)
+            {
+                _mutex?.Dispose();
+                _ewh?.Dispose();
+                _mmf?.Dispose();
+                _mmva?.Dispose();
+
+                throw;
+            }
+
+            return buffer;
+
+        }
 
         public T ReadData<T>(long position = 0, int timeout = -1) where T : struct
         {

@@ -39,6 +39,7 @@ namespace VlcPlayer
 
         public IntPtr VideoHostControlHandle { get; private set; }
         private SharedBuffer videoBuffer = null;
+        private string audioOutput = "directsound";
 
 
         private PlaybackState state;
@@ -201,16 +202,12 @@ namespace VlcPlayer
 
         
 
-
-        Guid exhangeId;
-        public void Start(IntPtr handle, Guid exhangeId)
+        public void Start()
         {
             try
             {
                 this.State = PlaybackState.Initializing;
-                this.exhangeId = exhangeId;
-
-
+ 
                 // throw new Exception("Setup()");
 
                 playbackThread = new Thread(PlaybackProc);
@@ -249,7 +246,15 @@ namespace VlcPlayer
             }
         }
 
-        private void CreatePlayback(Guid exchangeId)
+
+        public void SetAudioOutput(string audioOutput)
+        {
+            logger.Debug("SetAudioOutput(...) " + audioOutput);
+
+            this.audioOutput = audioOutput;
+        }
+
+        private void CreatePlayback()
         {
             //var options = new string[] { ":audio-visual=visual", ":effect-list=spectrum" };
             //var options = new string[] { "--video-filter=transform:sepia", "--sepia-intensity=100", "--transform-type=180" };
@@ -267,57 +272,37 @@ namespace VlcPlayer
 
             this.mediaPlayer = CreatePlayer(Session.VlcLibDirectory, opts);
 
-            //var handle = WindowHandle ?? IntPtr.Zero;
-            //var handle = Session.Config.VideoOutHandle;
-
-            if (this.VideoHostControlHandle != IntPtr.Zero)
-            {
-                mediaPlayer.VideoHostControlHandle = this.VideoHostControlHandle;
-
-                logger.Info("mediaPlayer.VideoHostControlHandle " + mediaPlayer.VideoHostControlHandle);
-            }
-
-            if (this.videoBuffer != null)
-            {
-                videoGrabber = new VlcVideoFrameGrabber(this);
-                videoGrabber.Setup();
-            }
-                
-
-            { // Setup audio
-                var outputs = mediaPlayer?.Audio?.Outputs;
-                if (outputs != null)
+            { //Setup video
+                if (this.VideoHostControlHandle != IntPtr.Zero)
                 {
-                    var directsound = outputs.All.FirstOrDefault(o => o.Name == "directsound");
-                    if (directsound != null)
+                    mediaPlayer.VideoHostControlHandle = this.VideoHostControlHandle;
+
+                    logger.Info("mediaPlayer.VideoHostControlHandle " + mediaPlayer.VideoHostControlHandle);
+                }
+
+                if (this.videoBuffer != null)
+                {
+                    videoGrabber = new VlcVideoFrameGrabber(this);
+                    videoGrabber.Setup();
+                }
+            }
+
+            { //Setup audio
+                if (!string.IsNullOrEmpty(audioOutput))
+                {
+                    var outputs = mediaPlayer?.Audio?.Outputs;
+                    if (outputs != null)
                     {
-                        outputs.Current = directsound;
+                        var audio = outputs.All?.FirstOrDefault(o => o.Name == audioOutput);
+                        if (audio != null)
+                        {
+                            outputs.Current = audio;
+                        }
+
                     }
                 }
             }
 
-            /*
-            if (!string.IsNullOrEmpty(Session.RemoteAddr))
-            {
-
-                communicationClient.Setup(Session.RemoteAddr);
-
-                var eventId = videoGrabber?.eventId;
-                var memoId = videoGrabber?.memoryId;
-
-                var options = communicationClient.Connect(new[] { eventId, memoId });
-                if (options != null)
-                {
-                    //logger.Debug(options.Volume);
-
-                    Session.Volume = options.Volume;
-                    Session.IsMute = options.IsMute;
-                    Session.SetBlurRadius(options.BlurRadius);
-                    loopPlayback = options.LoopPlayback;
-
-                }
-            }
-            */
         }
 
         private VlcMediaPlayer CreatePlayer(DirectoryInfo directory, string[] options = null)
@@ -366,80 +351,12 @@ namespace VlcPlayer
             logger.Debug("Player_Buffering(...) " + e.NewCache);
         }
 
-        class InternalCommand
-        {
-            public string command = "";
-            public object[] args = null;
-        }
-
         private Thread playbackThread = null;
         private AutoResetEvent syncEvent = new AutoResetEvent(false);
         private volatile bool closing = false;
 
-        // private CancellationTokenSource cancellationTokenSource = new CancellationTokenSource();
         private CommandQueue commandQueue = new CommandQueue();
-        class CommandQueue
-        {
-            private readonly LinkedList<InternalCommand> list = new LinkedList<InternalCommand>();
 
-            private readonly Dictionary<string, LinkedListNode<InternalCommand>> dict = new Dictionary<string, LinkedListNode<InternalCommand>>();
-
-            private readonly object locker = new object();
-
-            public InternalCommand Dequeue()
-            {
-                lock (locker)
-                {
-                    InternalCommand command = null;
-                    if (list.Count > 0)
-                    {
-                        command = list.First();
-                        list.RemoveFirst();
-
-                        var key = command.command;
-                        if (dict.ContainsKey(key))
-                        {
-                            dict.Remove(key);
-                        }
-                    }
-                    return command;
-                }
-            }
-
-            public void Enqueue(InternalCommand command)
-            {
-                lock (locker)
-                {
-                    //if(list.Count> maxCount)
-                    //{
-                    //    //...
-                    //}
-                    var key = command.command;
-                    if (dict.ContainsKey(key))
-                    {
-                        var node = dict[key];
-                        node.Value = command;
-                    }
-                    else
-                    {
-                        LinkedListNode<InternalCommand> node = list.AddLast(command);
-                        dict.Add(key, node);
-                    }
-
-                }
-            }
-
-            public void Clear()
-            {
-                lock (locker)
-                {
-                    list.Clear();
-                    dict.Clear();
-                }
-            }
-        }
-
-        private object locker = new object();
         private InternalCommand DequeueCommand()
         {
             if (closing)
@@ -481,7 +398,7 @@ namespace VlcPlayer
 
                 //throw new Exception(" playbackThread.Start();");
 
-                CreatePlayback( exhangeId);
+                CreatePlayback();
 
                 State = PlaybackState.Initialized;
 
@@ -1459,6 +1376,19 @@ namespace VlcPlayer
 
             private bool initiated = false;
 
+            public int GetVideoBufferSize(uint width, uint height, PixelFormat fmt)
+            {
+                int size = 0;
+                if(fmt == PixelFormats.Bgra32 || fmt == PixelFormats.Bgr32)
+                {
+                    var pitches = GetAlignedDimension((uint)(width * fmt.BitsPerPixel) / 8, 32);
+                    var lines = GetAlignedDimension(height, 32);
+                    size = (int)(pitches * lines);
+                }
+
+                return size;
+            }
+
             private uint VideoFormat(out IntPtr userdata, IntPtr chroma, ref uint width, ref uint height, ref uint pitches, ref uint lines)
             {
                 FourCCConverter.ToFourCC("RV32", chroma);
@@ -1471,10 +1401,36 @@ namespace VlcPlayer
                 var dataLenght = pitches * lines;
                 int dataOffset = 1024;
 
+                var videoInfo = sharedBuf.ReadData<VideoBufferInfo>();
+
                 if (sharedBuf.Capacity < dataLenght + dataOffset)
-                {
-                    //...
+                { // Подстраиваем изображение под размер буффера
+
+                    logger.Warn("" + sharedBuf.Capacity + " < " + (dataLenght + dataOffset));
+
+                    if (videoInfo.Width > 0 && videoInfo.Height > 0)
+                    {
+                        width = (uint)videoInfo.Width;
+                        height = (uint)videoInfo.Height;
+
+                        pitches = GetAlignedDimension((uint)(width * fmt.BitsPerPixel) / 8, 32);
+                        lines = GetAlignedDimension(height, 32);
+
+                        dataLenght = pitches * lines;
+                        if (sharedBuf.Capacity < dataLenght + dataOffset)
+                        {
+                            //...
+                            throw new Exception("sharedBuf.Capacity < dataLenght + dataOffset");
+                        }
+                    }
+                    else
+                    {
+                        //TODO: buffer not initialized...
+                        throw new Exception("Buffer not initialized.");
+                    }
+
                 }
+
 
                 userdata = IntPtr.Add(sharedBuf.Data, dataOffset);
 
@@ -1488,6 +1444,7 @@ namespace VlcPlayer
                     DataOffset = dataOffset,
                     DataLenght = dataLenght,
                 };
+
 
                 logger.Debug("VideoFormat: " + vi.ToString());
 
