@@ -129,6 +129,14 @@ namespace VlcPlayer
             Controller?.IncrBlurRadius(e.Delta);
         }
 
+        private void Slider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
+        {
+            //Controller?.S
+            if (this.PositionSlider.IsMouseDirectlyOver)
+            {
+                Controller?.PositionCommand.Execute(e.NewValue);
+            }
+        }
     }
 
 

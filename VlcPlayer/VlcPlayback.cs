@@ -68,7 +68,7 @@ namespace VlcPlayer
         public string MediaAddr
         {
             get { return mediaAddr; }
-            set
+            private set
             {
                 mediaAddr = value;
                 OnPropertyChanged(nameof(MediaAddr));
@@ -171,13 +171,20 @@ namespace VlcPlayer
         }
 
 
+
         public void Play(string mediaAddr = "")
         {
             if (string.IsNullOrEmpty(mediaAddr))
             {
                 mediaAddr = this.MediaAddr;
             }
-            EnqueueCommand("Play", new[] { mediaAddr });
+
+            Play(new object[] { mediaAddr });
+        }
+
+        public void Play(object[] args)
+        {
+            EnqueueCommand("Play", args);
         }
 
         public void Pause()
@@ -200,14 +207,23 @@ namespace VlcPlayer
             EnqueueCommand("Volume", new object[] { vol });
         }
 
+        public void SetPosition(double position)
+        {
+            EnqueueCommand("Position", new object [] { position });
+        }
         
 
-        public void Start()
+        public void Start(string mediaFile = "")
         {
             try
             {
                 this.State = PlaybackState.Initializing;
- 
+
+                if (!string.IsNullOrEmpty(mediaFile))
+                {
+                    this.MediaAddr = mediaFile;
+                }
+
                 // throw new Exception("Setup()");
 
                 playbackThread = new Thread(PlaybackProc);
@@ -569,8 +585,11 @@ namespace VlcPlayer
                         {
                             return;
                         }
-
+                        
+   
+                        
                         DoPlay(command.args);
+                        
 
                     }
                     break;
@@ -767,29 +786,43 @@ namespace VlcPlayer
         {
             logger.Debug("DoPlay(...)");
             string mediaLink = "";
+            bool force = false;
             if (args?.Length > 0)
             {
                 mediaLink = (string)args[0];
+                if (args.Length > 1)
+                {
+                    force = (bool)args[1];
+                }
             }
 
-            if (!string.IsNullOrEmpty(mediaLink))
+            if ((!force) && (mediaLink == MediaAddr) && (State == PlaybackState.Playing || State == PlaybackState.Paused))
             {
-                State = PlaybackState.Opening;
-
-                Task.Run(() =>
-                {
-                    mrlProvider.FetchMrl(mediaLink);
-
-                });
+                DoPause();
             }
             else
             {
-                var media = mediaPlayer?.GetMedia();
-                if (media != null)
+                if (!string.IsNullOrEmpty(mediaLink))
                 {
-                    DoPlayMrl(new[] { media.Mrl });
+                    State = PlaybackState.Opening;
+                    MediaAddr = mediaLink;
+
+                    Task.Run(() =>
+                    {
+                        mrlProvider.FetchMrl(mediaLink);
+
+                    });
+                }
+                else
+                {
+                    var media = mediaPlayer?.GetMedia();
+                    if (media != null)
+                    {
+                        DoPlayMrl(new[] { media.Mrl });
+                    }
                 }
             }
+
         }
 
         private void DoPlayMrl(object[] args)
@@ -820,6 +853,7 @@ namespace VlcPlayer
                 }
             }
         }
+
         private bool stopping = false;
         private void DoStop()
         {
@@ -1362,12 +1396,6 @@ namespace VlcPlayer
             {
                 logger.Debug("VlcVideoFrameGrabber::Setup(...)");
 
-                //string bufferName = ExchangeId.ToString("N"); // Guid.NewGuid().ToString("N");
-                //int buffrerCapacity = 40 * 1024 * 1024;
-
-                //sharedBuf = new SharedBuffer(bufferName, buffrerCapacity);
-
-
                 player.SetVideoFormatCallbacks(this.VideoFormat, this.Cleanup);
                 player.SetVideoCallbacks(LockVideo, null, Display, IntPtr.Zero);
                               
@@ -1465,6 +1493,7 @@ namespace VlcPlayer
                 return opaque;
 
             }
+
             private void Display(IntPtr userdata, IntPtr picture)
             {
                 if (initiated)
@@ -1672,41 +1701,6 @@ namespace VlcPlayer
                 return dimension + mod - (dimension % mod);
             }
 
-
-            public static System.Windows.Media.PixelFormat ToPixelFormat(System.Drawing.Imaging.PixelFormat sourceFormat)
-            {
-                switch (sourceFormat)
-                {
-                    case System.Drawing.Imaging.PixelFormat.Format24bppRgb:
-                        return PixelFormats.Bgr24;
-
-                    case System.Drawing.Imaging.PixelFormat.Format32bppArgb:
-                        return PixelFormats.Bgra32;
-
-                    case System.Drawing.Imaging.PixelFormat.Format32bppRgb:
-                        return PixelFormats.Bgr32;
-
-                }
-                return new System.Windows.Media.PixelFormat();
-            }
-
-            public static System.Drawing.Imaging.PixelFormat ToGdiPixelFormat(System.Windows.Media.PixelFormat sourceFormat)
-            {
-                System.Drawing.Imaging.PixelFormat format = System.Drawing.Imaging.PixelFormat.Undefined;
-                if (sourceFormat == PixelFormats.Bgr24)
-                {
-                    format = System.Drawing.Imaging.PixelFormat.Format24bppRgb;
-                }
-                else if (sourceFormat == PixelFormats.Bgra32)
-                {
-                    format = System.Drawing.Imaging.PixelFormat.Format32bppArgb;
-                }
-                else if (sourceFormat == PixelFormats.Bgr32)
-                {
-                    format = System.Drawing.Imaging.PixelFormat.Format32bppRgb;
-                }
-                return format;
-            }
 
             private bool disposedValue = false;
             protected virtual void Dispose(bool disposing)
@@ -1918,7 +1912,64 @@ namespace VlcPlayer
         Failed,
         Closing,
         Closed
+
     }
+
+
+    public class PlaybackStatistics : INotifyPropertyChanged
+    {
+
+        private int bytesRead = 0;
+        public int ReadBytes
+        {
+            get { return bytesRead; }
+            set
+            {
+                bytesRead = value;
+                OnPropertyChanged(nameof(ReadBytes));
+            }
+        }
+
+        private int demuxBytesRead = 0;
+        public int DemuxReadBytes
+        {
+            get { return demuxBytesRead; }
+            set
+            {
+                demuxBytesRead = value;
+                OnPropertyChanged(nameof(DemuxReadBytes));
+            }
+        }
+
+        private int displayedPictures = 0;
+        public int DisplayedPictures
+        {
+            get { return displayedPictures; }
+            set
+            {
+                displayedPictures = value;
+                OnPropertyChanged(nameof(DisplayedPictures));
+            }
+        }
+
+        private int playedAudioBuffers = 0;
+        public int PlayedAudioBuffers
+        {
+            get { return playedAudioBuffers; }
+            set
+            {
+                playedAudioBuffers = value;
+                OnPropertyChanged(nameof(PlayedAudioBuffers));
+            }
+        }
+
+        public event PropertyChangedEventHandler PropertyChanged;
+        private void OnPropertyChanged(string propertyName)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+    }
+
 
     static class VlcExtensions
     {

@@ -3,11 +3,12 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+        xmlns:i="clr-namespace:System.Windows.Interactivity;assembly=System.Windows.Interactivity"
         xmlns:local="clr-namespace:VlcPlayer"
         xmlns:sysControls="clr-namespace:System.Windows.Controls;assembly=PresentationFramework"
         mc:Ignorable="d"
         Title="{Binding Session.MediaAddr}"
-        Height="435" Width="544"  
+        Height="388.333" Width="506.667"  
         ShowInTaskbar="False" 
         WindowStartupLocation="CenterScreen"  >
     <!--Title="{Binding Session.CurrentMri}"-->
@@ -36,10 +37,8 @@
 
     <Grid Background="#FF214BDA" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" >
         <Grid.RowDefinitions>
-            <RowDefinition Height="3*">
-
-            </RowDefinition>
-            <RowDefinition Height="auto">
+            <RowDefinition/>
+            <RowDefinition Height="auto" MinHeight="30" >
 
             </RowDefinition>
         </Grid.RowDefinitions>
@@ -50,18 +49,18 @@
                Source="{Binding VideoSource}" 
                Effect="{Binding BlurEffect}" 
   
-               Margin="0,0,0,0" 
+               Margin="-3,0,3,0" 
                MouseWheel="Video_MouseWheel" >
-            
+
             <!--<Image.Effect>
                 <BlurEffect Radius="{Binding BlurRadius}"/>
             </Image.Effect>-->
-            
+
         </Image>
 
-        <StackPanel HorizontalAlignment="Left" Margin="10,13,0,0" VerticalAlignment="Top" Background="#7F000000" Visibility="Hidden">
+        <StackPanel HorizontalAlignment="Left" Margin="10,13,0,0" VerticalAlignment="Top" Background="#7F000000" Height="154" Width="124" >
 
-            <Label x:Name ="StatusLabel" Content="{Binding Session.PlaybackState, FallbackValue=---}" VerticalAlignment="Top"  HorizontalAlignment="Left" 
+            <Label x:Name ="StatusLabel" Content="{Binding PlaybackState, FallbackValue=---}" VerticalAlignment="Top"  HorizontalAlignment="Left" 
                Foreground="Red" VerticalContentAlignment="Center" HorizontalContentAlignment="Left"
                Padding="0" FontSize="16" FontFamily="Arial" Background="#7F000000" Margin="0,0,0,10" >
 
@@ -127,6 +126,25 @@
                HorizontalAlignment="Left"  VerticalAlignment="Top"  
                Padding="0" 
                Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000"/>
+
+        </StackPanel>
+        <StackPanel Height="30" Grid.Row="1" VerticalAlignment="Top" Background="Red" Orientation="Horizontal" >
+            <Button Content="Open" Width="75" Command="{Binding OpenFileCommand}" Margin="3"/>
+            <Button Width="75" Command="{Binding PlayCommand}" Margin="0,3,3,3">
+                <Button.Style>
+                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                    <Setter Property="Content" Value="Pause" />
+                    <Style.Triggers>
+                            <DataTrigger Binding="{Binding IsPlaying}" Value="false">
+                            <Setter Property="Content" Value="Play" />
+                        </DataTrigger>
+                    </Style.Triggers>
+                </Style>
+            </Button.Style>
+            </Button>
+           <Button Content="Stop" Width="75" Command="{Binding StopCommand}" Margin="0,3,3,3"/>
+            <Slider Name="PositionSlider" Width="143" Margin="3" ValueChanged="Slider_ValueChanged" Maximum="1" Value ="{Binding Position, Mode=OneWay}" SmallChange="0.01" >
+           </Slider>
 
         </StackPanel>
 

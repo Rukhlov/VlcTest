@@ -115,13 +115,15 @@ namespace VlcPlayer
             vlcPlayback = new VlcPlayback();
             vlcPlayback.PlaybackChanged += vlcPlayback_PlaybackChanged;
 
-            if (options != null)
+            vlcPlayback.PropertyChanged+= (s, e) => 
             {
-                vlcPlayback.MediaAddr = options.FileName;
-                this.RemoteAddr = options.ServerAddr;
-                this.ParentId = options.ParentId;
-                this.WindowHandle = options.WindowHandle;
-            }
+                if (e.PropertyName == "State")
+                {
+                    OnPropertyChanged(nameof(PlaybackState));
+                    OnPropertyChanged(nameof(IsPlaying));
+                }
+            };
+
 
             Session.Config.ExchangeId = Guid.NewGuid();
 
@@ -163,7 +165,7 @@ namespace VlcPlayer
             }
 
 
-            vlcPlayback.Start();
+            vlcPlayback.Start(options?.FileName);
 
         }
 
@@ -171,6 +173,10 @@ namespace VlcPlayer
         {
             //...
             playbackHost.OnSendCommand(command, args);
+            if(command == "Position")
+            {
+                OnPropertyChanged(nameof(Position));
+            }
 
         }
 
@@ -215,19 +221,30 @@ namespace VlcPlayer
 
                     playCommand = new PlaybackCommand(obj =>
                     {
-                        var fileName = "";
+                        //var fileName = "";
+                        //if (obj != null)
+                        //{
+                        //    object[] args = obj as object[];
+                        //    if (args != null && args.Length > 0)
+                        //    {
+                        //        fileName = args[0]?.ToString();
+
+                        //    }
+                        //}
+                        //vlcPlayback.Play(fileName);
+                        //EnqueueCommand("Play", new[] { this.MediaAddr });
+
                         if (obj != null)
                         {
                             object[] args = obj as object[];
-                            if (args != null && args.Length > 0)
-                            {
-                                fileName = args[0]?.ToString();
-                            }
+                            vlcPlayback.Play(args);
+                        }
+                        else
+                        {
+                            vlcPlayback.Play();
                         }
 
-                        vlcPlayback.Play(fileName);
-                        //EnqueueCommand("Play", new[] { this.MediaAddr });
-
+     
                     });
 
                 }
@@ -302,7 +319,8 @@ namespace VlcPlayer
 
                         if ((bool)ofd.ShowDialog())
                         {
-                            PlayCommand.Execute(new[] { ofd.FileName });
+                            bool force = true;
+                            PlayCommand.Execute(new object[] { ofd.FileName , force });
                         }
 
                     });
@@ -364,6 +382,24 @@ namespace VlcPlayer
             }
         }
 
+        private ICommand posCommand = null;
+        public ICommand PositionCommand
+        {
+            get
+            {
+                if (posCommand == null)
+                {
+                    posCommand = new PlaybackCommand(p =>
+                    {
+                        double pos = (double)p; 
+                        vlcPlayback.SetPosition(pos);
+
+                    });
+                }
+                return posCommand;
+            }
+        }
+
 
         private BlurEffect blurEffect = new BlurEffect { Radius = 0 };
         public BlurEffect BlurEffect
@@ -380,6 +416,35 @@ namespace VlcPlayer
                     this.blurEffect = value;
                     this.OnPropertyChanged(nameof(BlurEffect));
                 }
+            }
+        }
+
+
+        public PlaybackState PlaybackState
+        {
+            get { return vlcPlayback?.State?? PlaybackState.Created; }
+
+        }
+
+        public bool IsPlaying
+        {
+            get
+            {
+                bool isPlaying = false;
+                if(vlcPlayback?.State == PlaybackState.Playing)
+                {
+                    isPlaying = true;
+                }
+
+                return isPlaying;
+            }
+        }
+
+        public double Position
+        {
+            get
+            {
+                return vlcPlayback?.Position ?? 0;
             }
         }
 
@@ -401,15 +466,6 @@ namespace VlcPlayer
         {
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
-
-        public int ParentId { get; set; }
-
-        public string SyncEventId { get; set; }
-
-        public string VlcOptions { get; set; }
-
-        public int WindowHandle { get; set; }
-
 
         public void SetBlurRadius(int blurRadius)
         {
@@ -528,6 +584,12 @@ namespace VlcPlayer
             }
             else if (command == "Position")
             {
+                double pos = 0;
+                if (double.TryParse(arg0, out pos))
+                {
+                    vlcPlayback.SetPosition(pos);
+                }
+
                 //EnqueueCommand("Position", new[] { arg0 });
             }
             else if (command == "Volume")
@@ -583,62 +645,6 @@ namespace VlcPlayer
         }
     }
 
-
-
-
-    public class PlaybackStatistics : INotifyPropertyChanged
-    {
-
-        private int bytesRead = 0;
-        public int ReadBytes
-        {
-            get { return bytesRead; }
-            set
-            {
-                bytesRead = value;
-                OnPropertyChanged(nameof(ReadBytes));
-            }
-        }
-
-        private int demuxBytesRead = 0;
-        public int DemuxReadBytes
-        {
-            get { return demuxBytesRead; }
-            set
-            {
-                demuxBytesRead = value;
-                OnPropertyChanged(nameof(DemuxReadBytes));
-            }
-        }
-
-        private int displayedPictures = 0;
-        public int DisplayedPictures
-        {
-            get { return displayedPictures; }
-            set
-            {
-                displayedPictures = value;
-                OnPropertyChanged(nameof(DisplayedPictures));
-            }
-        }
-
-        private int playedAudioBuffers = 0;
-        public int PlayedAudioBuffers
-        {
-            get { return playedAudioBuffers; }
-            set
-            {
-                playedAudioBuffers = value;
-                OnPropertyChanged(nameof(PlayedAudioBuffers));
-            }
-        }
-
-        public event PropertyChangedEventHandler PropertyChanged;
-        private void OnPropertyChanged(string propertyName)
-        {
-            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-        }
-    }
 
 
     public class PlaybackCommand : System.Windows.Input.ICommand
