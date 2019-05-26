@@ -38,7 +38,8 @@ namespace VlcPlayer
         //private VideoSourceProvider videoSourceProvider = null;
 
         public IntPtr VideoHostControlHandle { get; private set; }
-        private SharedBuffer videoBuffer = null;
+
+        public SharedBuffer VideoBuffer  { get; private set; }
         private string audioOutput = "directsound";
 
 
@@ -252,14 +253,18 @@ namespace VlcPlayer
             this.VideoHostControlHandle = hWnd;
         }
 
-        public void SetOutputVideoToBuffer(SharedBuffer buffer)
+        public void SetOutputVideoToBuffer(string name, VideoBufferInfo info)
         {
 
             logger.Debug("SetOutputVideoToBuffer(...)");
-            if (buffer != null)
-            {
-                this.videoBuffer = buffer;
-            }
+
+            var videoSize = VideoUtils.EstimateVideoSize(info.Width, info.Height, info.PixelFormat);
+
+            int buffrerCapacity = videoSize + info.DataOffset;
+
+            this.VideoBuffer = new SharedBuffer(name, buffrerCapacity);
+            this.VideoBuffer.WriteData(info);
+
         }
 
 
@@ -296,7 +301,7 @@ namespace VlcPlayer
                     logger.Info("mediaPlayer.VideoHostControlHandle " + mediaPlayer.VideoHostControlHandle);
                 }
 
-                if (this.videoBuffer != null)
+                if (this.VideoBuffer != null)
                 {
                     videoGrabber = new VlcVideoFrameGrabber(this);
                     videoGrabber.Setup();
@@ -1337,7 +1342,7 @@ namespace VlcPlayer
             //Thread.Sleep(1000000);
             //throw new Exception("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! CleanUp()");
             logger.Debug("CleanUp(...)");
-           // communicationClient?.Close();
+          
 
             if (mediaPlayer != null)
             {
@@ -1359,8 +1364,10 @@ namespace VlcPlayer
                 mediaPlayer = null;
             }
 
+
             videoGrabber?.Dispose();
             mrlProvider?.Dispose();
+            VideoBuffer?.Dispose();
 
             // cancellationTokenSource?.Dispose();
         }
@@ -1384,7 +1391,7 @@ namespace VlcPlayer
                 this.playback = playback;
 
                 this.player = playback.mediaPlayer;
-                this.sharedBuf = playback.videoBuffer;
+                this.sharedBuf = playback.VideoBuffer;
             }
 
 

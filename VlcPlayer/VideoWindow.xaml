@@ -8,7 +8,7 @@
         xmlns:sysControls="clr-namespace:System.Windows.Controls;assembly=PresentationFramework"
         mc:Ignorable="d"
         Title="{Binding Session.MediaAddr}"
-        Height="388.333" Width="506.667"  
+        Height="453.666" Width="627.334"  
         ShowInTaskbar="False" 
         WindowStartupLocation="CenterScreen"  >
     <!--Title="{Binding Session.CurrentMri}"-->
@@ -35,14 +35,15 @@
     </Window.Background>
 
 
-    <Grid Background="#FF214BDA" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" >
+    <Grid Background="Black" HorizontalAlignment="Stretch" VerticalAlignment="Stretch" >
         <Grid.RowDefinitions>
-            <RowDefinition/>
-            <RowDefinition Height="auto" MinHeight="30" >
-
-            </RowDefinition>
+            <RowDefinition />
+            <RowDefinition Height="auto" MinHeight="30"/>
         </Grid.RowDefinitions>
-        <!--<WindowsFormsHost Name="VlcHost"/>-->
+
+
+        <Rectangle Grid.Row="0" Fill="#FF214BDA" />
+        <Rectangle Grid.Row="1" Fill="Green" />
 
         <Image x:Name="Video" 
                Grid.Row="0"
@@ -50,7 +51,7 @@
                Effect="{Binding BlurEffect}" 
   
                Margin="-3,0,3,0" 
-               MouseWheel="Video_MouseWheel" >
+               MouseWheel="Video_MouseWheel" OpacityMask="Black" >
 
             <!--<Image.Effect>
                 <BlurEffect Radius="{Binding BlurRadius}"/>
@@ -128,25 +129,46 @@
                Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000"/>
 
         </StackPanel>
-        <StackPanel Height="30" Grid.Row="1" VerticalAlignment="Top" Background="Red" Orientation="Horizontal" >
-            <Button Content="Open" Width="75" Command="{Binding OpenFileCommand}" Margin="3"/>
-            <Button Width="75" Command="{Binding PlayCommand}" Margin="0,3,3,3">
-                <Button.Style>
-                <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
-                    <Setter Property="Content" Value="Pause" />
-                    <Style.Triggers>
-                            <DataTrigger Binding="{Binding IsPlaying}" Value="false">
-                            <Setter Property="Content" Value="Play" />
-                        </DataTrigger>
-                    </Style.Triggers>
-                </Style>
-            </Button.Style>
-            </Button>
-           <Button Content="Stop" Width="75" Command="{Binding StopCommand}" Margin="0,3,3,3"/>
-            <Slider Name="PositionSlider" Width="143" Margin="3" ValueChanged="Slider_ValueChanged" Maximum="1" Value ="{Binding Position, Mode=OneWay}" SmallChange="0.01" >
-           </Slider>
 
-        </StackPanel>
+        <Grid Grid.Row="1" VerticalAlignment="Top" Background="Red" >
+            <Grid.RowDefinitions>
+                <RowDefinition Height="auto"  />
+                <RowDefinition Height="auto" />
+            </Grid.RowDefinitions>
+            
+            <Slider Name="PositonSlider"
+                    ValueChanged="Slider_ValueChanged" 
+                    IsManipulationEnabled="True"
+                    MouseMove="PositonSlider_MouseMove"
+                    Thumb.DragStarted="PositionSlider_DragStarted"
+                    Thumb.DragCompleted="PositionSlider_DragCompleted"
+                    Minimum="0"
+                    Maximum="1"           
+                    SmallChange="0.01" Grid.Row ="0" Margin="5" TickFrequency="0.01" LargeChange="0" PreviewMouseDown="PositonSlider_PreviewMouseDown" PreviewMouseUp="PositonSlider_PreviewMouseUp" 
+                    />
+            <!--Value ="{Binding Position, Mode=OneWay}"-->
+            <StackPanel Grid.Row="1" Orientation="Horizontal" >
+                <Button Content="Open" Command="{Binding OpenFileCommand}" Margin="5,0,3,3" Width="55" />
+
+                <Button Command="{Binding PlayCommand}" Margin="0,0,3,3" Width="55" >
+                    <Button.Style>
+                        <Style TargetType="Button" BasedOn="{StaticResource {x:Type Button}}">
+                            <Setter Property="Content" Value="Pause" />
+                            <Style.Triggers>
+                                <DataTrigger Binding="{Binding IsPlaying}" Value="false">
+                                    <Setter Property="Content" Value="Play" />
+                                </DataTrigger>
+                            </Style.Triggers>
+                        </Style>
+                    </Button.Style>
+                </Button>
+                <Button Content="Stop" Command="{Binding StopCommand}" Margin="0,0,3,3" Width="55" />
+            </StackPanel>
+
+
+
+
+        </Grid>
 
     </Grid>
 

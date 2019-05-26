@@ -103,6 +103,7 @@
       <SubType>Designer</SubType>
     </Page>
     <Compile Include="CommunicationClient.cs" />
+    <Compile Include="PlaybackController.cs" />
     <Compile Include="VlcPlayback.cs" />
     <Compile Include="PlaybackHost.cs" />
     <Compile Include="Program.cs" />
