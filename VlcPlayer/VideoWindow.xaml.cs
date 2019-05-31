@@ -152,7 +152,7 @@ namespace VlcPlayer
         {
             if (!dragStarted )//|| !mouseDown)
             {
-                this.PositonSlider.Value = pos;
+                //this.PositonSlider.Value = pos;
             }
         }
 

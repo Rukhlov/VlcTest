@@ -57,31 +57,7 @@ namespace VlcPlayer
 
             var cmdOpts = Session.Config.Options;
 
-            string remoteAddr = cmdOpts?.ServerAddr;
-
-            if (!string.IsNullOrEmpty(remoteAddr))
-            {
-                ipcChannel = new CommunicationClient(this);
-
-                ipcChannel.Setup(remoteAddr);
-
-                var o = ipcChannel.Connect(new[] { "eventId", "memoId" });
-                if (o != null)
-                {
-                    //playbackHost.Volume = options.Volume;
-                    //playbackHost.IsMute = options.IsMute;
-                    //vlcPlayback.LoopPlayback = options.LoopPlayback;
-
-                    //this.SetBlurRadius(options.BlurRadius);
-
-
-                }
-            }
-
-            var options = Session.Config.Options;
-
             Session.Config.ExchangeId = Guid.NewGuid();
-
 
             var videoBufferId = Session.Config.ExchangeId;
             if (videoBufferId != Guid.Empty)
@@ -99,20 +75,40 @@ namespace VlcPlayer
                 Playback.SetOutputVideoToBuffer(bufferName, videoInfo);
             }
 
-            Playback.Start(options?.FileName);
-
 
             if (Session.ParentProcess == null)
             {
-                MainWindow.Show();
-
-                var handle = new WindowInteropHelper(this.MainWindow).Handle; //EnsureHandle();
+                var handle = new WindowInteropHelper(this.MainWindow).EnsureHandle();
 
                 if (handle != IntPtr.Zero)
                 {
                    Playback.SetVideoHostHandle(handle);
                 }
             }
+
+
+            string remoteAddr = cmdOpts?.ServerAddr;
+
+            if (!string.IsNullOrEmpty(remoteAddr))
+            {
+                ipcChannel = new CommunicationClient(this);
+
+                ipcChannel.Setup(remoteAddr);
+
+                var o = ipcChannel.Connect(new object[] { videoBufferId, });
+                if (o != null)
+                {
+                    //playbackHost.Volume = options.Volume;
+                    //playbackHost.IsMute = options.IsMute;
+                    //vlcPlayback.LoopPlayback = options.LoopPlayback;
+
+                    //this.SetBlurRadius(options.BlurRadius);
+                }
+            }
+
+            Playback.Start(cmdOpts?.FileName);
+
+            //MainWindow.Show();
 
             //================= RUN ==================
             System.Windows.Threading.Dispatcher.Run();
@@ -230,16 +226,7 @@ namespace VlcPlayer
             }
             else if (command == "SetLoopPlayback")
             {
-                bool _loopPlayback = false;
-                if (bool.TryParse(arg0, out _loopPlayback))
-                {
-                    Playback.LoopPlayback = _loopPlayback;
-
-                }
-                else
-                {
-                    Playback.LoopPlayback = !Playback.LoopPlayback;
-                }
+                Playback.SwitchLoopPlayback(arg0);
             }
         }
 

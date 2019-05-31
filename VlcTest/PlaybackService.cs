@@ -277,6 +277,12 @@ namespace VlcTest
                 var args = obj as object[];
                 var fileName = args[0].ToString();
 
+                if(Session == null)
+                {
+                    Session = new PlaybackSession();
+                }
+
+
                 Session.SourceMedia = fileName;
 
                 //Session = new PlaybackSession
@@ -357,7 +363,7 @@ namespace VlcTest
                 return;
             }
 
-            logger.Debug("command " + command.command);
+            //logger.Debug("command " + command.command);
 
             switch (command.command)
             {
@@ -405,7 +411,7 @@ namespace VlcTest
 
                                 Session.ClientChannelId = id;
                                 Session.EventSyncId = _args?[0]?.ToString();
-                                Session.MemoryBufferId = _args?[1]?.ToString();
+                               // Session.MemoryBufferId = _args?[1]?.ToString();
 
                                 logger.Debug("Client " + id + " connected...");
 

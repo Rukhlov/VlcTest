@@ -8,15 +8,17 @@ using System.Linq;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Controls;
 using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Effects;
 using System.Windows.Threading;
+using VlcContracts;
 
 namespace VlcTest
 {
 
-    class VideoSourceProvider : INotifyPropertyChanged
+    public class VideoSourceProvider : INotifyPropertyChanged
     {
         private static Logger logger = LogManager.GetCurrentClassLogger();
 
@@ -30,6 +32,9 @@ namespace VlcTest
         private string appEventId = "";
 
         private Task task = null;
+
+        public MemoryRenderer Renderer { get; private set; }
+
 
         public volatile bool closing = false;
         private volatile bool rendering = false;
@@ -47,7 +52,7 @@ namespace VlcTest
                 return this.videoSource;
             }
 
-            private set
+            set
             {
                 if (!Object.ReferenceEquals(this.videoSource, value))
                 {
@@ -112,7 +117,29 @@ namespace VlcTest
             }
         }
 
-        public void Setup(string eventId, string memoryId)
+        public void Setup(string eventId)
+        {
+            Guid guid;
+            if(Guid.TryParse(eventId, out guid))
+            {
+
+                var bufferName = guid.ToString("N");
+
+                var videoBuffer = SharedBuffer.OpenExisting(bufferName);
+
+                if (videoBuffer != null)
+                {
+                    Renderer = new MemoryRenderer(videoBuffer);
+
+                    Renderer.Run(this, dispatcher);
+
+                }
+
+            }
+        }
+
+
+        public void _Setup(string eventId, string memoryId)
         {
             logger.Debug("VideoControl::Setup(...) " + eventId + " " + memoryId);
 
@@ -326,4 +353,179 @@ namespace VlcTest
             PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
+
+
+
+
+    public class MemoryRenderer
+    {
+        private static Logger logger = LogManager.GetCurrentClassLogger();
+
+        //private Dispatcher dispatcher;
+        //private Image image = null;
+
+        public MemoryRenderer(SharedBuffer buffer)
+        {
+            this.videoBuffer = buffer;
+           // dispatcher = Dispatcher.CurrentDispatcher;
+        }
+
+        private InteropBitmap interopBitmap = null;
+
+        private SharedBuffer videoBuffer = null;
+
+        public void Run(VideoSourceProvider provider, Dispatcher dispatcher)
+        {
+
+            //this.dispatcher = image.Dispatcher;
+
+            logger.Debug("Run(...) " + videoBuffer.Name);
+
+            closing = false;
+
+            Task task = Task.Run(() =>
+            {
+                logger.Debug("Render task started...");
+
+                //sharedBuf = new SharedBuffer(ExchangeId.ToString("N"));
+
+                try
+                {
+
+                    videoBuffer.WaitForSignal();
+
+                    bool started = false;
+
+                    VideoBufferInfo vi = new VideoBufferInfo();
+
+                    while (!closing)
+                    {
+
+
+                            vi = videoBuffer.ReadData<VideoBufferInfo>();
+
+                            if (vi.State == VideoBufferState.Display)
+                            {
+                                if (!started)
+                                {
+
+                                    try
+                                    {
+                                        int width = vi.Width;
+                                        int height = vi.Height;
+                                        var fmt = vi.PixelFormat;
+                                        var pitches = (int)vi.Pitches;
+                                        var offset = vi.DataOffset;
+
+                                        logger.Debug("Video params: " + vi.ToString());
+
+                                        dispatcher.Invoke(() =>
+                                        {
+
+
+                                            if (width > 0 && height > 0) // TODO: validate...
+                                            {
+                                                logger.Debug("Create InteropBitmap");
+
+                                                interopBitmap = (InteropBitmap)Imaging.CreateBitmapSourceFromMemorySection(videoBuffer.Section, width, height, fmt, pitches, offset);
+
+                                                provider.VideoSource = interopBitmap;
+
+                                                started = true;
+
+                                            }
+                                        });
+                                    }
+                                    catch (Exception ex)
+                                    {
+
+                                        logger.Error(ex);
+                                        started = false;
+                                    }
+
+
+                                    if (!started)
+                                    {
+                                        //...
+                                        //syncEvent.WaitOne(1000);
+
+                                    }
+                                }
+                            
+
+
+                                dispatcher.BeginInvoke(DispatcherPriority.Render,
+                                  (Action)(() =>
+                                  {
+                                      interopBitmap?.Invalidate();
+
+                                  }));
+
+                            
+                        }
+                        else
+                        {
+                            started = false;
+
+                            dispatcher.Invoke(() =>
+                            {
+                                //image.Source = null;
+                            });
+                        }
+
+                        videoBuffer.WaitForSignal(1000);
+                    }
+
+                    //buffer.Dispose();
+
+                }
+                catch (Exception ex)
+                {
+                    logger.Error(ex);
+                }
+
+                logger.Debug("Render task ended...");
+
+            });
+
+        }
+
+        private bool closing = false;
+        public void Close()
+        {
+
+            logger.Debug("Close()");
+
+            closing = true;
+
+            videoBuffer?.Pulse();
+
+        }
+
+
+
+
+        //public void _UpdateVideoSource(IntPtr buf, int length, int stride)
+        //{
+        //    //CopyMemory(_videoSource.BackBuffer, buf, (uint)(_videoSource.PixelWidth * _videoSource.PixelHeight * 4));
+
+        //    this.dispatcher.BeginInvoke(DispatcherPriority.Render,
+        //      (Action)(() =>
+        //      {
+        //          //interopBitmap?.Invalidate();
+        //          var rect = new Int32Rect(0, 0, _videoSource.PixelWidth, _videoSource.PixelHeight);
+
+        //          _videoSource.Lock();
+        //          //_VideoSource.BackBuffer = buf;
+        //          //CopyMemory(_videoSource.BackBuffer, buf, (uint)(_videoSource.PixelWidth * _videoSource.PixelHeight * 3));
+
+        //           _VideoSource.WritePixels(rect, buf, length, stride);
+        //          _videoSource.AddDirtyRect(rect);
+        //          _videoSource.Unlock();
+        //      }));
+        //}
+
+    }
+
+
 }

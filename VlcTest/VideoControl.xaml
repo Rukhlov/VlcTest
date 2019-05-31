@@ -13,7 +13,7 @@
             <RowDefinition />
             <RowDefinition Height="41" MinHeight="41"/>
         </Grid.RowDefinitions>
-        <Image x:Name="Video" Source="{Binding VideoSource}" OpacityMask="Black"  Effect="{Binding BlurEffect}" >
+        <Image x:Name="Video" Source="{Binding VideoSource}"  Effect="{Binding BlurEffect}" >
         </Image>
         <local:WaitPanel x:Name="waitPanel" Visibility="{Binding Path=IsBusy, Converter={StaticResource BoolToVisibleConverter}}" />
         <Label  Content = "{Binding Path=Banner}" Foreground="Red" HorizontalAlignment="Center"  VerticalAlignment="Center" FontFamily="Segoe UI" FontSize="14" HorizontalContentAlignment="Center" VerticalContentAlignment="Center" IsEnabled="False" UseLayoutRounding="True" Background="{x:Null}" Height="10" Width="10"/>

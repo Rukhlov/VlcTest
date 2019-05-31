@@ -32,8 +32,27 @@ namespace VlcPlayer
             this.host = host;
             this.dispatcher = host.Dispatcher;
             this.playback = host.Playback;
+
+            this.playback.PropertyChanged += Playback_PropertyChanged;
         }
 
+        private void Playback_PropertyChanged(object sender, PropertyChangedEventArgs e)
+        {
+            if(e.PropertyName == "MediaAddr")
+            {
+                OnPropertyChanged(nameof(MediaAddr));
+            }
+            else if (e.PropertyName == "State")
+            {
+                OnPropertyChanged(nameof(PlaybackState));
+            }
+            else if (e.PropertyName == "PlaybackStats")
+            {
+                OnPropertyChanged(nameof(StatInfo));
+            }
+
+
+        }
 
         private ICommand playCommand = null;
         public ICommand PlayCommand
@@ -253,7 +272,7 @@ namespace VlcPlayer
             get
             {
                 var pos = playback?.Position ?? 0;
-                host?.MainWindow?.UpdatePosition(pos);
+               // host?.MainWindow?.UpdatePosition(pos);
                 return pos;
             }
         }
@@ -366,6 +385,40 @@ namespace VlcPlayer
 
                 return renderer;
             }
+        }
+
+        public string StatInfo
+        {
+            get
+            {
+
+                string statInfo = "";
+
+                var stats = playback?.PlaybackStats;
+                if (stats != null)
+                {
+                    StringBuilder sb = new StringBuilder();
+
+                    sb.AppendLine("ReadBytes: " + stats.ReadBytes);
+                    sb.AppendLine("DemuxReadBytes: " + stats.DemuxReadBytes);
+                    sb.AppendLine("DisplayedPictures: " + stats.DisplayedPictures);
+                    sb.AppendLine("PlayedAudioBuffers: " + stats.PlayedAudioBuffers);
+
+                    statInfo = sb.ToString();
+                }
+
+                return statInfo;
+            }
+        }
+
+
+        public string MediaAddr
+        {
+            get
+            {
+                return playback?.MediaAddr??"";
+            }
+
         }
     }
 

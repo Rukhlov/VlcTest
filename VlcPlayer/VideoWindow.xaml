@@ -7,7 +7,7 @@
         xmlns:local="clr-namespace:VlcPlayer"
         xmlns:sysControls="clr-namespace:System.Windows.Controls;assembly=PresentationFramework"
         mc:Ignorable="d"
-        Title="{Binding Session.MediaAddr}"
+        Title="{Binding MediaAddr}"
         Height="453.666" Width="627.334"  
         ShowInTaskbar="False" 
         WindowStartupLocation="CenterScreen"  >
@@ -50,7 +50,7 @@
                Source="{Binding VideoSource}" 
                Effect="{Binding BlurEffect}" 
   
-               Margin="-3,0,3,0" 
+               Margin="0,0,0,0" 
                MouseWheel="Video_MouseWheel" OpacityMask="Black" >
 
             <!--<Image.Effect>
@@ -59,7 +59,7 @@
 
         </Image>
 
-        <StackPanel HorizontalAlignment="Left" Margin="10,13,0,0" VerticalAlignment="Top" Background="#7F000000" Height="154" Width="124" >
+        <StackPanel HorizontalAlignment="Left" Margin="10,13,0,0" VerticalAlignment="Top" Background="#7F000000" >
 
             <Label x:Name ="StatusLabel" Content="{Binding PlaybackState, FallbackValue=---}" VerticalAlignment="Top"  HorizontalAlignment="Left" 
                Foreground="Red" VerticalContentAlignment="Center" HorizontalContentAlignment="Left"
@@ -67,37 +67,37 @@
 
             </Label>
 
-            <Label x:Name ="ReadBytesLabel" Content="{Binding Session.PlaybackStats.ReadBytes, FallbackValue=---}" ContentStringFormat="ReadBytes: {0}"
+            <Label x:Name ="StatInfoLabel" Content="{Binding StatInfo, FallbackValue=...}"  
+               Padding="0" 
+               Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000" />
+
+            
+            <!--<Label x:Name ="DemuxReadBytesLabel" Content="{Binding Session.PlaybackStats.DemuxReadBytes, FallbackValue=}" ContentStringFormat="DemuxReadBytes: {0}"
                HorizontalAlignment="Left"  VerticalAlignment="Top"  
                Padding="0" 
                Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000" />
 
-            <Label x:Name ="DemuxReadBytesLabel" Content="{Binding Session.PlaybackStats.DemuxReadBytes, FallbackValue=---}" ContentStringFormat="DemuxReadBytes: {0}"
+            <Label x:Name ="DisplayedPicturesLabel" Content="{Binding Session.PlaybackStats.DisplayedPictures, FallbackValue=}" ContentStringFormat="DisplayedPictures: {0}"
                HorizontalAlignment="Left"  VerticalAlignment="Top"  
                Padding="0" 
                Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000" />
 
-            <Label x:Name ="DisplayedPicturesLabel" Content="{Binding Session.PlaybackStats.DisplayedPictures, FallbackValue=---}" ContentStringFormat="DisplayedPictures: {0}"
+            <Label x:Name ="PlayedAudioBuffersLabel" Content="{Binding Session.PlaybackStats.PlayedAudioBuffers, FallbackValue=}" ContentStringFormat="PlayedAudioBuffers: {0}"
                HorizontalAlignment="Left"  VerticalAlignment="Top"  
                Padding="0" 
-               Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000" />
+               Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000" />-->
 
-            <Label x:Name ="PlayedAudioBuffersLabel" Content="{Binding Session.PlaybackStats.PlayedAudioBuffers, FallbackValue=---}" ContentStringFormat="PlayedAudioBuffers: {0}"
+            <!--<Label x:Name ="PositoinLabel" Content="{Binding Session.Position, FallbackValue=}" ContentStringFormat="Position: {0}"
                HorizontalAlignment="Left"  VerticalAlignment="Top"  
                Padding="0" 
-               Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000" />
-
-            <Label x:Name ="PositoinLabel" Content="{Binding Session.Position, FallbackValue=---}" ContentStringFormat="Position: {0}"
-               HorizontalAlignment="Left"  VerticalAlignment="Top"  
-               Padding="0" 
-               Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000" />
+               Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000" />-->
 
             <!--<Label x:Name ="PlaybackTimingLabel" Content="{Binding Session.TotalTime,  FallbackValue=}" ContentStringFormat="Time: {0:hh\\:mm}"
                HorizontalAlignment="Left"  VerticalAlignment="Top"  
                Padding="0" 
                Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000"/>-->
 
-            <Label x:Name ="PlaybackTimingLabel"
+            <!--<Label x:Name ="PlaybackTimingLabel"
                HorizontalAlignment="Left"  VerticalAlignment="Top"  
                Padding="0" 
                Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000">
@@ -111,26 +111,26 @@
                         </TextBlock.Text>
                     </TextBlock>
                 </Label.Content>
-            </Label>
+            </Label>-->
 
-            <Label x:Name ="VolumeLabel" Content="{Binding Session.Volume, FallbackValue=---}" ContentStringFormat="Volume: {0}"
+            <!--<Label x:Name ="VolumeLabel" Content="{Binding Session.Volume, FallbackValue=}" ContentStringFormat="Volume: {0}"
                HorizontalAlignment="Left"  VerticalAlignment="Top"  
                Padding="0" 
                Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000" />
 
-            <Label Name ="IsMuteLabel" Content="{Binding Session.IsMute, FallbackValue=---}" ContentStringFormat="Mute: {0}"
+            <Label Name ="IsMuteLabel" Content="{Binding Session.IsMute, FallbackValue=}" ContentStringFormat="Mute: {0}"
                HorizontalAlignment="Left"  VerticalAlignment="Top"  
                Padding="0" 
                Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000" />
 
-            <Label Name ="BlurLabel" Content="{Binding Path=Session.BlurEffect.Radius, FallbackValue=---}" ContentStringFormat="BlurRadius: {0}"
+            <Label Name ="BlurLabel" Content="{Binding Path=Session.BlurEffect.Radius, FallbackValue=}" ContentStringFormat="BlurRadius: {0}"
                HorizontalAlignment="Left"  VerticalAlignment="Top"  
                Padding="0" 
-               Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000"/>
+               Foreground="Red" FontFamily="Arial" FontSize="12" Background="#7F000000"/>-->
 
         </StackPanel>
 
-        <Grid Grid.Row="1" VerticalAlignment="Top" Background="Red" >
+        <!--<Grid Grid.Row="1" VerticalAlignment="Top" Background="Red" >
             <Grid.RowDefinitions>
                 <RowDefinition Height="auto"  />
                 <RowDefinition Height="auto" />
@@ -146,7 +146,7 @@
                     Maximum="1"           
                     SmallChange="0.01" Grid.Row ="0" Margin="5" TickFrequency="0.01" LargeChange="0" PreviewMouseDown="PositonSlider_PreviewMouseDown" PreviewMouseUp="PositonSlider_PreviewMouseUp" 
                     />
-            <!--Value ="{Binding Position, Mode=OneWay}"-->
+            --><!--Value ="{Binding Position, Mode=OneWay}"--><!--
             <StackPanel Grid.Row="1" Orientation="Horizontal" >
                 <Button Content="Open" Command="{Binding OpenFileCommand}" Margin="5,0,3,3" Width="55" />
 
@@ -165,10 +165,7 @@
                 <Button Content="Stop" Command="{Binding StopCommand}" Margin="0,0,3,3" Width="55" />
             </StackPanel>
 
-
-
-
-        </Grid>
+        </Grid>-->
 
     </Grid>
 

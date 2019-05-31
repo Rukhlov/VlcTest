@@ -522,6 +522,8 @@ namespace VlcPlayer
                         playbackStats.DisplayedPictures = stats.DisplayedPictures;
                         playbackStats.PlayedAudioBuffers = stats.PlayedAudioBuffers;
 
+                        OnPropertyChanged(nameof(PlaybackStats));
+
                     }
                 }
                 else
@@ -1141,6 +1143,20 @@ namespace VlcPlayer
             }
         }
 
+
+        public void SwitchLoopPlayback(string arg0)
+        {
+            bool _loopPlayback = false;
+            if (bool.TryParse(arg0, out _loopPlayback))
+            {
+                this.LoopPlayback = _loopPlayback;
+
+            }
+            else
+            {
+                this.LoopPlayback = !this.LoopPlayback;
+            }
+        }
 
         private void MediaPlayer_Log(object sender, VlcMediaPlayerLogEventArgs e)
         {

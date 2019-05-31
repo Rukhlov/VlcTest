@@ -59,9 +59,16 @@
             this.button6 = new System.Windows.Forms.Button();
             this.labelVolume = new System.Windows.Forms.Label();
             this.speedComboBox = new System.Windows.Forms.ComboBox();
+            this.label2 = new System.Windows.Forms.Label();
+            this.button7 = new System.Windows.Forms.Button();
+            this.trackBar1 = new System.Windows.Forms.TrackBar();
+            this.label3 = new System.Windows.Forms.Label();
             this.elementHost1 = new System.Windows.Forms.Integration.ElementHost();
             this.videoControl1 = new VlcTest.VideoControl();
-            this.label2 = new System.Windows.Forms.Label();
+            this.button8 = new System.Windows.Forms.Button();
+            this.audioSessionsComboBox = new System.Windows.Forms.ComboBox();
+            this.trackBar2 = new System.Windows.Forms.TrackBar();
+            this.checkBoxMute2 = new System.Windows.Forms.CheckBox();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarPosition)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarVolume)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarBlur)).BeginInit();
@@ -71,6 +78,8 @@
             ((System.ComponentModel.ISupportInitialize)(this.trackBarContrast)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarGamma)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarSaturation)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.trackBar1)).BeginInit();
+            ((System.ComponentModel.ISupportInitialize)(this.trackBar2)).BeginInit();
             this.SuspendLayout();
             // 
             // buttonConnect
@@ -406,20 +415,11 @@
             // 
             this.speedComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.speedComboBox.FormattingEnabled = true;
-            this.speedComboBox.Location = new System.Drawing.Point(133, 442);
+            this.speedComboBox.Location = new System.Drawing.Point(159, 404);
             this.speedComboBox.Name = "speedComboBox";
             this.speedComboBox.Size = new System.Drawing.Size(121, 21);
             this.speedComboBox.TabIndex = 40;
             this.speedComboBox.SelectedValueChanged += new System.EventHandler(this.speedComboBox_SelectedValueChanged);
-            // 
-            // elementHost1
-            // 
-            this.elementHost1.Location = new System.Drawing.Point(483, 243);
-            this.elementHost1.Name = "elementHost1";
-            this.elementHost1.Size = new System.Drawing.Size(228, 140);
-            this.elementHost1.TabIndex = 37;
-            this.elementHost1.Text = "elementHost1";
-            this.elementHost1.Child = this.videoControl1;
             // 
             // label2
             // 
@@ -430,11 +430,102 @@
             this.label2.TabIndex = 41;
             this.label2.Text = "label2";
             // 
+            // button7
+            // 
+            this.button7.Location = new System.Drawing.Point(497, 504);
+            this.button7.Name = "button7";
+            this.button7.Size = new System.Drawing.Size(75, 23);
+            this.button7.TabIndex = 42;
+            this.button7.Text = "button7";
+            this.button7.UseVisualStyleBackColor = true;
+            this.button7.Click += new System.EventHandler(this.button7_Click);
+            // 
+            // trackBar1
+            // 
+            this.trackBar1.Location = new System.Drawing.Point(362, 504);
+            this.trackBar1.Maximum = 100;
+            this.trackBar1.Name = "trackBar1";
+            this.trackBar1.Size = new System.Drawing.Size(129, 42);
+            this.trackBar1.TabIndex = 43;
+            this.trackBar1.TickFrequency = 10;
+            this.trackBar1.Value = 100;
+            this.trackBar1.Scroll += new System.EventHandler(this.trackBar1_Scroll);
+            // 
+            // label3
+            // 
+            this.label3.AutoSize = true;
+            this.label3.Location = new System.Drawing.Point(401, 480);
+            this.label3.Name = "label3";
+            this.label3.Size = new System.Drawing.Size(35, 13);
+            this.label3.TabIndex = 44;
+            this.label3.Text = "label3";
+            // 
+            // elementHost1
+            // 
+            this.elementHost1.Location = new System.Drawing.Point(483, 243);
+            this.elementHost1.Name = "elementHost1";
+            this.elementHost1.Size = new System.Drawing.Size(228, 140);
+            this.elementHost1.TabIndex = 37;
+            this.elementHost1.Text = "elementHost1";
+            this.elementHost1.Child = this.videoControl1;
+            // 
+            // button8
+            // 
+            this.button8.Location = new System.Drawing.Point(146, 480);
+            this.button8.Name = "button8";
+            this.button8.Size = new System.Drawing.Size(75, 23);
+            this.button8.TabIndex = 45;
+            this.button8.Text = "Update";
+            this.button8.UseVisualStyleBackColor = true;
+            this.button8.Click += new System.EventHandler(this.button8_Click);
+            // 
+            // audioSessionsComboBox
+            // 
+            this.audioSessionsComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.audioSessionsComboBox.FormattingEnabled = true;
+            this.audioSessionsComboBox.Location = new System.Drawing.Point(12, 480);
+            this.audioSessionsComboBox.Name = "audioSessionsComboBox";
+            this.audioSessionsComboBox.Size = new System.Drawing.Size(121, 21);
+            this.audioSessionsComboBox.TabIndex = 46;
+            this.audioSessionsComboBox.SelectedIndexChanged += new System.EventHandler(this.audioSessionsComboBox_SelectedIndexChanged);
+            this.audioSessionsComboBox.SelectedValueChanged += new System.EventHandler(this.audioSessionsComboBox_SelectedValueChanged);
+            // 
+            // trackBar2
+            // 
+            this.trackBar2.AutoSize = false;
+            this.trackBar2.Location = new System.Drawing.Point(12, 509);
+            this.trackBar2.Maximum = 100;
+            this.trackBar2.Name = "trackBar2";
+            this.trackBar2.Size = new System.Drawing.Size(209, 18);
+            this.trackBar2.TabIndex = 47;
+            this.trackBar2.TickFrequency = 10;
+            this.trackBar2.Value = 100;
+            this.trackBar2.Scroll += new System.EventHandler(this.trackBar2_Scroll);
+            // 
+            // checkBoxMute2
+            // 
+            this.checkBoxMute2.AutoSize = true;
+            this.checkBoxMute2.Location = new System.Drawing.Point(13, 534);
+            this.checkBoxMute2.Name = "checkBoxMute2";
+            this.checkBoxMute2.Size = new System.Drawing.Size(50, 17);
+            this.checkBoxMute2.TabIndex = 48;
+            this.checkBoxMute2.Text = "Mute";
+            this.checkBoxMute2.TextAlign = System.Drawing.ContentAlignment.TopLeft;
+            this.checkBoxMute2.UseVisualStyleBackColor = true;
+            this.checkBoxMute2.CheckedChanged += new System.EventHandler(this.checkBoxMute2_CheckedChanged);
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
             this.ClientSize = new System.Drawing.Size(779, 558);
+            this.Controls.Add(this.checkBoxMute2);
+            this.Controls.Add(this.trackBar2);
+            this.Controls.Add(this.audioSessionsComboBox);
+            this.Controls.Add(this.button8);
+            this.Controls.Add(this.label3);
+            this.Controls.Add(this.trackBar1);
+            this.Controls.Add(this.button7);
             this.Controls.Add(this.label2);
             this.Controls.Add(this.speedComboBox);
             this.Controls.Add(this.labelVolume);
@@ -467,6 +558,7 @@
             this.Controls.Add(this.buttonConnect);
             this.Name = "MainForm";
             this.Text = "Form1";
+            this.Load += new System.EventHandler(this.MainForm_Load);
             ((System.ComponentModel.ISupportInitialize)(this.trackBarPosition)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarVolume)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarBlur)).EndInit();
@@ -477,6 +569,8 @@
             ((System.ComponentModel.ISupportInitialize)(this.trackBarContrast)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarGamma)).EndInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarSaturation)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.trackBar1)).EndInit();
+            ((System.ComponentModel.ISupportInitialize)(this.trackBar2)).EndInit();
             this.ResumeLayout(false);
             this.PerformLayout();
 
@@ -518,6 +612,13 @@
         private System.Windows.Forms.Label labelVolume;
         private System.Windows.Forms.ComboBox speedComboBox;
         private System.Windows.Forms.Label label2;
+        private System.Windows.Forms.Button button7;
+        private System.Windows.Forms.TrackBar trackBar1;
+        private System.Windows.Forms.Label label3;
+        private System.Windows.Forms.Button button8;
+        private System.Windows.Forms.ComboBox audioSessionsComboBox;
+        private System.Windows.Forms.TrackBar trackBar2;
+        private System.Windows.Forms.CheckBox checkBoxMute2;
     }
 }
 

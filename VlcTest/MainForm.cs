@@ -5,7 +5,11 @@ using System.IO;
 using System.Threading.Tasks;
 using System.Windows.Forms;
 //using System.Windows.Input;
+
+using System.Linq;
+
 using VlcContracts;
+using System.Drawing;
 
 namespace VlcTest
 {
@@ -73,7 +77,7 @@ namespace VlcTest
             //trackBarPosition.DataBindings.Add(new Binding("Value", playbackService.Session, "Position", true, DataSourceUpdateMode.OnPropertyChanged ));
             //label2.DataBindings.Add(new Binding("Text", playbackService.Session, "Position", false, DataSourceUpdateMode.OnPropertyChanged));
 
-           // label2.DataBindings.Add(new Binding("Text", playbackService.Session, "Position"));
+            // label2.DataBindings.Add(new Binding("Text", playbackService.Session, "Position"));
 
         }
 
@@ -242,7 +246,7 @@ namespace VlcTest
             var eventId = playbackSession.EventSyncId;
             var memoryId = playbackSession.MemoryBufferId;
 
-            videoProvider.Setup(eventId, memoryId);
+            videoProvider.Setup(eventId);
 
             this.Invoke((Action)(() =>
             {
@@ -437,7 +441,7 @@ namespace VlcTest
 
             PlayCommand.Execute(currentMediaFile);
 
-           // PlayFile(currentMediaFile);
+            // PlayFile(currentMediaFile);
         }
 
         private void PlayFile(params object[] args)
@@ -502,7 +506,7 @@ namespace VlcTest
 
                 if (File.Exists(currentMediaFile))
                 {
-                    PlayCommand.Execute(new object [] { currentMediaFile, true });
+                    PlayCommand.Execute(new object[] { currentMediaFile, true });
 
                     //PlayFile(currentMediaFile, true);
                     //if (IsPaused || IsStopped)
@@ -774,8 +778,8 @@ namespace VlcTest
                                 if (args != null && args.Length > 1)
                                 {
                                     uri = args[0].ToString();
-                                    force = (bool)args[1];                            
-                                }  
+                                    force = (bool)args[1];
+                                }
                             }
                         }
 
@@ -833,7 +837,253 @@ namespace VlcTest
         }
 
 
+        class TransparentForm : Form
+        {
+            public TransparentForm() { }
+
+
+            public enum GWL
+            {
+                ExStyle = -20
+            }
+
+            public enum WS_EX
+            {
+                Transparent = 0x20,
+                Layered = 0x80000
+            }
+
+            public enum LWA
+            {
+                ColorKey = 0x1,
+                Alpha = 0x2
+            }
+
+            [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "GetWindowLong")]
+            public static extern int GetWindowLong(IntPtr hWnd, GWL nIndex);
+
+            [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SetWindowLong")]
+            public static extern int SetWindowLong(IntPtr hWnd, GWL nIndex, int dwNewLong);
+
+            [System.Runtime.InteropServices.DllImport("user32.dll", EntryPoint = "SetLayeredWindowAttributes")]
+            public static extern bool SetLayeredWindowAttributes(IntPtr hWnd, int crKey, byte alpha, LWA dwFlags);
+
+            //protected override void OnShown(EventArgs e)
+            //{
+            //    base.OnShown(e);
+
+            //    int wl = GetWindowLong(this.Handle, GWL.ExStyle);
+            //    wl = wl | 0x80000 | 0x20;
+            //    SetWindowLong(this.Handle, GWL.ExStyle, wl);
+            //    //SetLayeredWindowAttributes(this.Handle, 0, 128, LWA.Alpha);
+            //}
+
+
+            protected override CreateParams CreateParams
+            {
+                get
+                {
+                    CreateParams cp = base.CreateParams;
+                    cp.ExStyle |= 0x80000 /* WS_EX_LAYERED */ | 0x20 /* WS_EX_TRANSPARENT */ | 0x80/* WS_EX_TOOLWINDOW */;
+                    return cp;
+                }
+            }
+
+            protected override void WndProc(ref Message m)
+            {
+                const int WM_NCHITTEST = 0x84;
+                const int HTTRANSPARENT = -1;
+
+                if (m.Msg == (int)WM_NCHITTEST)
+                {
+                    m.Result = (IntPtr)HTTRANSPARENT;
+                }
+                else
+                {
+                    base.WndProc(ref m);
+                }
+            }
+
+        }
+
+        TransparentForm f = null;
+        private void button7_Click(object sender, EventArgs e)
+        {
+
+            Screen screen = null;
+            var screens = Screen.AllScreens;
+            if (screens.Length > 1)
+            {
+                screen = screens.FirstOrDefault(s => !s.Primary);
+            }
+
+            Rectangle bounds = screen?.WorkingArea ?? new Rectangle(10, 10, 100, 100);
+
+            if (f == null)
+            {
+                f = new TransparentForm();
+                f.Opacity = 0.5;
+                f.BackColor = System.Drawing.Color.Black;
+                f.FormBorderStyle = FormBorderStyle.None;
+                f.StartPosition = FormStartPosition.Manual;
+                f.Bounds = bounds;
+                //f.Owner = this;
+                f.ShowInTaskbar = false;
+                f.TopMost = true;
+            }
+
+            if (f != null)
+            {
+                var opacity = f.Opacity * (trackBar1.Maximum - trackBar1.Minimum);
+
+                trackBar1.Value = (int)opacity;
+
+                f.Visible = !f.Visible;
+            }
+
+        }
+
+        private void trackBar1_Scroll(object sender, EventArgs e)
+        {
+            if (f != null)
+            {
+
+                var opacity = (double)(trackBar1.Value) / (double)(trackBar1.Maximum - trackBar1.Minimum);
+
+                if (opacity > 0.99)
+                {
+                    opacity = 0.99;//0.99;
+
+                }
+                else if (opacity < 0)
+                {
+                    opacity = 0;
+                }
+
+                label3.Text = opacity.ToString();
+                f.Opacity = opacity;
+
+            }
+        }
+
+        private void MainForm_Load(object sender, EventArgs e)
+        {
+
+        }
+
+
+        AudioVolumeManager audioVolumeManager = null;
+        private void button8_Click(object sender, EventArgs e)
+        {
+            if (audioVolumeManager != null)
+            {
+                
+            }
+
+            audioVolumeManager = new AudioVolumeManager();
+
+            if (audioVolumeManager != null)
+            {
+                audioVolumeManager.Update();
+
+                var audioSessions = audioVolumeManager.Session;
+
+                if (audioSessions.Count > 0)
+                {
+                    audioSessionsComboBox.DataSource = audioSessions;
+                    audioSessionsComboBox.DisplayMember = "DisplayName";
+                    audioSessionsComboBox.Refresh();
+                }
+
+            }
+
+
+        }
+        private AudioVolumeController audioSessionController = null;
+
+        private void audioSessionsComboBox_SelectedValueChanged(object sender, EventArgs e)
+        {
+            var selectedValue = audioSessionsComboBox.SelectedValue;
+            if (selectedValue != null)
+            {
+                if (audioSessionController != null)
+                {
+                    audioSessionController.VolumeChanged -= AudioSessionController_VolumeChanged;
+                }
+                audioSessionController = selectedValue as AudioVolumeController;
+
+                if (audioSessionController != null)
+                {
+                    audioSessionController.VolumeChanged += AudioSessionController_VolumeChanged;
+                }
+            }
+
+           // audioSessionController = 
+        }
+
+        private void AudioSessionController_VolumeChanged(object sender, VolumeEventArgs e)
+        {
+            
+            //var vol = (trackBar2.Maximum - trackBar2.Minimum) * e.Volume;
+
+        }
+
+        private void checkBoxMute2_CheckedChanged(object sender, EventArgs e)
+        {
+            var controller = audioSessionController;
+            if (controller != null)
+            {
+                controller.Mute = checkBoxMute2.Checked;
+            }
+
+            //audioSessionController?.Mute = checkBoxMute2.Checked;
+        }
+
+        private void trackBar2_Scroll(object sender, EventArgs e)
+        {
+           var volume = trackBar2.Value / 100.0f;
+            var controller = audioSessionController;
+            if (controller != null)
+            {
+                controller.Volume = volume;
+            }
+
+        }
+
+  
+
+
+
+        private void audioSessionsComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+
+        }
+
+
     }
+
+
+    public class MuteEventArgs : EventArgs
+    {
+        public MuteEventArgs(bool muted)
+        {
+            Muted = muted;
+        }
+
+        public bool Muted { get; private set; }
+    }
+
+    public class VolumeEventArgs : EventArgs
+    {
+        public VolumeEventArgs(float volume)
+        {
+            Volume = volume;
+        }
+
+        public float Volume { get; private set; }
+    }
+
+
 
     class PlaybackController
     {
