@@ -13,26 +13,47 @@ using System.Threading.Tasks;
 namespace VlcTest
 {
 
-    class AudioVolumeManager
-    {
 
-        public AudioVolumeManager()
+    class AudioMixerManager
+    {
+        //public readonly List<AudioVolumeController> Controllers;
+        object syncRoot = new object();
+        public readonly List<AudioMixerItem> Items = new List<AudioMixerItem>();
+
+
+        public AudioMixerManager()
         {
+            //using (var deviceEnumerator = new MMDeviceEnumerator())
+            //{
+            //    foreach (var device in deviceEnumerator.EnumerateAudioEndPoints(DataFlow.Render, DeviceState.Active))
+            //    {
+            //        devices.Add(device);
+            //    }
+            //}
+
             using (var deviceEnumerator = new MMDeviceEnumerator())
             {
                 device = deviceEnumerator.GetDefaultAudioEndpoint(DataFlow.Render, Role.Multimedia);
 
+                //this.device.AudioEndpointVolume.OnVolumeNotification += AudioEndpointVolume_OnVolumeNotification;
             }
-
-            this.Session = new List<AudioVolumeController>();
-
-
         }
+
+       // private List<MMDevice> devices = new List<MMDevice>();
+
+        private MMDevice device = null;
 
         public void Update()
         {
+            ClearItems();
 
-            this.Session.Clear();
+            AudioVolumeSession deviceSession = new AudioVolumeSession(device);
+            deviceSession.VolumeChanged += DeviceSession_VolumeChanged;
+
+
+            AudioMixerItem deviceItem = new AudioMixerItem(this, deviceSession);
+
+            Items.Add(deviceItem);
 
             var sessions = device?.AudioSessionManager?.Sessions;
             if (sessions == null)
@@ -40,86 +61,237 @@ namespace VlcTest
                 return;
             }
 
-            AudioVolumeController deviceController = new AudioVolumeController(this.Device);
-            this.Session.Add(deviceController);
-
             for (int i = 0; i < sessions.Count; i++)
             {
-                var session = sessions[i];
-                if (session.State != AudioSessionState.AudioSessionStateExpired)
+                AudioVolumeSession mixerSession = new AudioVolumeSession(this.device, sessions[i]);
+
+                if (mixerSession.IsEnabled)
                 {
-                   
-                    if (!session.IsSystemSoundsSession)
+                    var groupId = mixerSession.GroupingParams;
+                    AudioMixerItem groupItem = null;
+                    if (groupId != Guid.Empty)
                     {
-                        var pid = session.GetProcessID;
-                        if (pid > 0)
+                        groupItem = Items.FirstOrDefault(s => s.GroupingParams == groupId);
+                        if (groupItem != null)
                         {
-                            try
-                            {
-                                var process = Process.GetProcessById((int)pid);
-
-                               // if (process.MainWindowHandle != IntPtr.Zero)
-                                {
-                                    AudioVolumeController _session = new AudioVolumeController(this.device, session);
-
-                                    Session.Add(_session);
-                                }
-                            }
-                            catch (ArgumentException)
-                            {
-
-                            }
+                            groupItem.AddSession(mixerSession);
                         }
+                    }
+
+                    if (groupItem != null)
+                    {
+                        groupItem.AddSession(mixerSession);
                     }
                     else
                     {
-                        AudioVolumeController _session = new AudioVolumeController(this.device, session);
-
-                        Session.Add(_session);
-
+                        AudioMixerItem item = new AudioMixerItem(this, mixerSession);
+                        Items.Add(item);
                     }
                 }
-
-            }
-
-        }
-
-        private MMDevice device;
-        public MMDevice Device
-        {
-            get
-            {
-                return device;
+                else
+                {
+                    Debug.WriteLine("Session.IsEnabled "+ false);
+                }
             }
         }
 
-        public readonly List<AudioVolumeController> Session;
-
-
-        private bool ProcessExists(uint processId)
+        private void DeviceSession_VolumeChanged(int _volume, bool _mute )
         {
-            try
+            Debug.WriteLine("DeviceSession_VolumeChanged(...) " + _volume + " " + _mute);
+
+            if (_volume >= 0)
             {
-                var process = Process.GetProcessById((int)processId);
-                return true;
+                foreach (var item in Items)
+                {
+                    item.UpdateVolume();
+                }
             }
-            catch (ArgumentException)
+        }
+
+
+        private void ClearItems()
+        {
+            for(int i = 0; i < Items.Count; i++)
             {
-                return false;
+                var item = Items[i];
+                item.Dispose();
+                item = null;
             }
+
+            this.Items.Clear();
         }
 
         public void Dispose()
         {
+            ClearItems();
+
+
             if (device != null)
             {
+
                 device.Dispose();
             }
+     
         }
 
     }
 
-    class AudioVolumeController : IAudioSessionEventsHandler
+
+    class AudioMixerItem
+    {
+        private readonly List<AudioVolumeSession> sessions = new List<AudioVolumeSession>();
+        private AudioMixerManager manager;
+
+        public readonly Guid GroupingParams = Guid.Empty;
+        public AudioMixerItem(AudioMixerManager man, AudioVolumeSession sess)
+        {
+            this.manager = man;
+
+            if (sess.GroupingParams != Guid.Empty)
+            {
+                GroupingParams = sess.GroupingParams;
+            }
+
+            Name = sess.DisplayName;
+
+            volume = sess.GetVolumeLevel();
+
+            mute = sess.Mute;
+
+            AddSession(sess);
+
+        }
+
+        public string Name { get; private set; } = "Unknown";
+
+        private int volume = 0;
+        public int Volume
+        {
+            get
+            {
+                return volume;
+            }
+
+            set
+            {
+                if (volume != value)
+                {
+                    int _volume = value;
+
+                    float _sessionVolume = _volume / 100.0f;
+
+                    foreach (var sess in sessions)
+                    {
+
+                        sess.Volume = _sessionVolume;
+                    }
+                }
+            }
+        }
+
+        private bool mute = false;
+        public bool Mute
+        {
+            get
+            {
+                return mute;
+            }
+
+            set
+            {
+                if (mute != value)
+                {
+                    bool _mute = value;
+                    foreach (var sess in sessions)
+                    {
+                        sess.Mute = _mute;
+                    }
+                }
+            }
+        }
+
+ 
+        public void AddSession(AudioVolumeSession session)
+        {
+            if (session != null)
+            {
+                if (session.GroupingParams == this.GroupingParams)
+                {
+                    sessions.Add(session);
+                    session.VolumeChanged += Session_VolumeChanged;
+                }
+            }
+        }
+
+        public event Action<int> VolumeChanged;
+        public event Action<bool> MuteChanged;
+
+        private void Session_VolumeChanged(int _volume, bool _mute)
+        {
+            Debug.WriteLine("Session_VolumeChanged(...) " + _volume + " "  + mute + " "+ this.Name);
+
+            if (_volume >= 0)
+            {
+                if (_volume != volume)
+                {
+                    volume = _volume;
+
+                    VolumeChanged?.Invoke(volume);
+                }
+            }
+
+
+            if (_mute != mute)
+            {
+                mute = _mute;
+
+                MuteChanged?.Invoke(mute);
+            }
+        }
+
+
+        public void RemoveSession(AudioVolumeSession session)
+        {
+            if (session != null)
+            {
+                session.VolumeChanged -= Session_VolumeChanged;
+                sessions.Remove(session);
+            }
+        }
+
+        public void UpdateVolume()
+        {
+            Debug.WriteLine("UpdateVolume() " + this.Name);
+
+            foreach(var sess in sessions)
+            {
+
+                sess.UpdateVolume();
+            }
+        }
+
+
+        public void Dispose()
+        {
+            for(int i = 0; i < sessions.Count; i++)
+            {
+                var session = sessions[i];
+
+                session.VolumeChanged -= Session_VolumeChanged;
+
+                session.CleanUp();
+                session = null;
+            }
+
+            sessions.Clear();
+            manager = null;
+
+        }
+    }
+
+
+
+    class AudioVolumeSession : IAudioSessionEventsHandler
     {
 
         private readonly bool isDeviceSession = false;
@@ -127,204 +299,316 @@ namespace VlcTest
         private readonly AudioSessionControl session;
         public readonly MMDevice Device;
 
-        public AudioVolumeController(MMDevice device, AudioSessionControl session = null)
+        public AudioVolumeSession(MMDevice device, AudioSessionControl session = null)
         {
             this.Device = device;         
             this.session = session;
+
             this.isDeviceSession = (session == null);
 
-            this.Device.AudioEndpointVolume.OnVolumeNotification += AudioEndpointVolume_OnVolumeNotification;
-            if (session != null)
-            {
-                Process process = Process.GetProcessById((int)session.GetProcessID);
-                if (session.IsSystemSoundsSession)
-                {
-
-                }
-                else
-                {
-
-                }
-
-                session.RegisterEventClient(this);
-            }
+            Setup();
         }
 
-        private void AudioEndpointVolume_OnVolumeNotification(AudioVolumeNotificationData data)
-        {
-            Debug.WriteLine("AudioEndpointVolume_OnVolumeNotification(...) " + data.MasterVolume + " " + data.Muted);
-        }
 
-        public string DisplayName
-        {
-            get
-            {
-                var displayName = "Unknown";
-                if (isDeviceSession)
-                {
-                    displayName =  this.Device.FriendlyName;
-                }
-                else
-                {
-                    displayName = session?.DisplayName;
-                }
-                return displayName;
-            }
-        }
+        public bool IsEnabled { get; private set; } = false;
 
-        public event EventHandler DeviceChanged;
-        public event EventHandler<MuteEventArgs> MuteChanged;
-        public event EventHandler<VolumeEventArgs> VolumeChanged;
+        public int ProcessId { get; private set; } = -1;
 
+        public Guid GroupingParams { get; private set; } = Guid.Empty;
+        public string DisplayName { get; private set; } = "";
+
+        private bool mute = false;
         public bool Mute
         {
 
             get
             {
-                bool mute = false;
-                if (!isDeviceSession)
-                {
-                    mute = session?.SimpleAudioVolume?.Mute ?? mute;
-                }
-                else
-                {
-                    mute = Device?.AudioEndpointVolume?.Mute ?? mute;
-                }
                 return mute;
             }
             set
             {
-                bool muted = value;
-
-                if (!isDeviceSession)
+                if (mute != value)
                 {
-                
-                    session.SimpleAudioVolume.Mute = muted;
-                    if (!muted)
+                    bool _mute = value;
+                   // mute = value;
+
+                    if (!isDeviceSession)
                     {
-                        Device.AudioEndpointVolume.Mute = false;
+                        session.SimpleAudioVolume.Mute = _mute;
+
+                        if (!_mute)
+                        {
+                            Device.AudioEndpointVolume.Mute = false;
+                        }
                     }
-                }
-                else
-                {
+                    else
+                    {
 
-                    Device.AudioEndpointVolume.Mute = muted;
-                }
-
-                UpdateMuted();
-
-                if (MuteChanged != null)
-                {
-                    MuteChanged(this, new MuteEventArgs(muted));
+                        Device.AudioEndpointVolume.Mute = _mute;
+                    }
                 }
             }
 
         }
 
+        private float volume = 0;
         public float Volume
         {
             get
             {
-                float volume = -1;
-                if (!isDeviceSession)
-                {
-                    volume = session?.SimpleAudioVolume?.Volume ?? volume;
-
-                }
-                else
-                {
-                    volume = Device?.AudioEndpointVolume?.MasterVolumeLevelScalar ?? volume;
-                }
                 return volume;
             }
             set
             {
-                SetVolume(value);
+                if (volume != value)
+                {
+                    //volume = value;
+
+                    float _volume = value;
+                    if (!isDeviceSession)
+                    {
+                        var newVolume = _volume / Device.AudioEndpointVolume.MasterVolumeLevelScalar;
+
+                        if (newVolume <= 1)
+                        {
+                            session.SimpleAudioVolume.Volume = newVolume;
+                        }
+                        else
+                        {
+                            Device.AudioEndpointVolume.MasterVolumeLevelScalar = _volume;
+                            session.SimpleAudioVolume.Volume = 1;
+                        }
+                        session.SimpleAudioVolume.Mute = false;
+                    }
+                    else
+                    {
+                        Device.AudioEndpointVolume.MasterVolumeLevelScalar = _volume;
+                    }
+
+                    Device.AudioEndpointVolume.Mute = false;
+                }
             }
         }
 
-        public void SetVolume(float volume)
+
+        public int GetVolumeLevel()
         {
+            int vol = -1;
+
             if (!isDeviceSession)
             {
-                var newVolume = volume / Device.AudioEndpointVolume.MasterVolumeLevelScalar;
-
-                if (newVolume <= 1)
-                {
-                    session.SimpleAudioVolume.Volume = newVolume;
-                }
-                else
-                {
-                    Device.AudioEndpointVolume.MasterVolumeLevelScalar = volume;
-                    session.SimpleAudioVolume.Volume = 1;
-                }
-                session.SimpleAudioVolume.Mute = false;
+                vol = (int)(Math.Round(volume * Device.AudioEndpointVolume.MasterVolumeLevelScalar * 100));
             }
             else
             {
-                Device.AudioEndpointVolume.MasterVolumeLevelScalar = volume;
+                vol = (int)(Math.Round(volume * 100));
             }
 
-            Device.AudioEndpointVolume.Mute = false;
 
-            if (VolumeChanged != null)
-            {
-                VolumeChanged(this, new VolumeEventArgs(volume));
-            }
-
-            UpdateMuted();
-
-            if (MuteChanged != null)
-            {
-                MuteChanged(this, new MuteEventArgs(false));
-            }
+            return vol;
         }
+
 
         public void UpdateVolume()
         {
             if (!isDeviceSession)
             {
-                float volume = session.SimpleAudioVolume.Volume;
-                var Value = (int)(Math.Round(volume * Device.AudioEndpointVolume.MasterVolumeLevelScalar * 100));
-            }
-            else
-            {
-                var Value = (int)(Math.Round(Device.AudioEndpointVolume.MasterVolumeLevelScalar * 100));
 
-                if (VolumeChanged != null)
-                {
-                    VolumeChanged(null, new VolumeEventArgs(Device.AudioEndpointVolume.MasterVolumeLevelScalar));
-                }
-            }
-        }
+                float _volume = session.SimpleAudioVolume.Volume; 
+                bool _mute = session.SimpleAudioVolume.Mute;
 
-        public void UpdateMuted()
-        {
-            bool mute;
-            if (!isDeviceSession)
-            {
-                mute = session.SimpleAudioVolume.Mute;
                 if (Device.AudioEndpointVolume.Mute)
                 {
-                    mute = true;
+                    _mute = true;
                 }
+
+                OnVolumeChanged(_volume, _mute);
             }
             else
             {
-                mute = Device.AudioEndpointVolume.Mute;
-                if (MuteChanged != null)
-                {
-                    MuteChanged(null, new MuteEventArgs(Device.AudioEndpointVolume.Mute));
-                }
+                //...
+            }
+        }
+
+        public void Setup()
+        {
+            Debug.WriteLine("Setup()");
+
+            if (!isDeviceSession)
+            {
+                IsEnabled = (session.State != AudioSessionState.AudioSessionStateExpired);
+            }
+            else
+            {
+                IsEnabled = (Device.State == DeviceState.Active);
             }
 
+            if (!IsEnabled)
+            {
+                Debug.WriteLine("IsEnabled " + IsEnabled);
+                return;
+            }
+
+
+            if (!isDeviceSession)
+            {
+
+                if (!session.IsSystemSoundsSession)
+                {
+
+                    ProcessId = (int)session.GetProcessID;
+
+                    if (ProcessId > 0)
+                    {
+
+                        try
+                        {
+                           
+                            DisplayName = session.DisplayName;
+  
+                            var process = Process.GetProcesses().FirstOrDefault(p => p.Id == ProcessId);//Process.GetProcessById(ProcessId);
+
+                            if (process != null)
+                            {
+                                //process.EnableRaisingEvents = true;
+
+                                //process.Exited += (o, a) =>
+                                //{
+                                //    Debug.WriteLine("process.Exited ");
+                                //};
+
+                                if (string.IsNullOrEmpty(DisplayName))
+                                {
+                                    if (process.MainWindowHandle != IntPtr.Zero)
+                                    {
+                                        DisplayName = process.MainWindowTitle;
+                                    }
+                                }
+
+                                if (string.IsNullOrEmpty(DisplayName))
+                                {
+                                    DisplayName = process.ProcessName;
+                                }
+                            }
+                            else
+                            {
+                                //...
+
+                                IsEnabled = false;
+                            }
+
+                        }
+                        catch (Exception ex)
+                        {
+                            Debug.WriteLine(ex);
+
+                            IsEnabled = false;
+                        }
+
+                    }
+                    else
+                    {
+                        IsEnabled = false;
+                    }
+
+                    if (!IsEnabled)
+                    {
+
+                        return;
+                    }
+
+                    GroupingParams = session.GetGroupingParam();             
+                }
+                else
+                {
+                    DisplayName = "System Sounds";
+                    var identifier = session.GetSessionIdentifier;
+
+                }
+
+                mute = session.SimpleAudioVolume.Mute;
+                volume = session.SimpleAudioVolume.Volume;
+
+                session.RegisterEventClient(this);
+
+            }
+            else
+            {
+
+                this.Device.AudioEndpointVolume.OnVolumeNotification += AudioEndpointVolume_OnVolumeNotification;
+
+                DisplayName = this.Device.FriendlyName;
+
+                mute = this.Device.AudioEndpointVolume.Mute;
+                volume = Device.AudioEndpointVolume.MasterVolumeLevelScalar;
+            }
         }
 
 
-        public void OnVolumeChanged(float volume, bool isMuted)
+        public void CleanUp()
         {
-            Debug.WriteLine("OnVolumeChanged(...) " + volume + " " + isMuted);
 
+            if (session != null)
+            {
+                session.UnRegisterEventClient(this);
+            }
+
+            if (isDeviceSession)
+            {
+                if (this.Device.AudioEndpointVolume != null)
+                {
+                    this.Device.AudioEndpointVolume.OnVolumeNotification -= AudioEndpointVolume_OnVolumeNotification;
+                }
+            }
+        }
+
+
+
+        private void AudioEndpointVolume_OnVolumeNotification(AudioVolumeNotificationData data)
+        {
+
+            if (isDeviceSession)
+            {
+                OnVolumeChanged(data.MasterVolume, data.Muted);
+
+            }
+            else
+            {
+                //...
+                Debug.WriteLine("!!!!!!!!!!!!!!! AudioEndpointVolume_OnVolumeNotification(...) " + isDeviceSession);
+            }
+        }
+
+
+        public event Action<int, bool> VolumeChanged;
+
+        public void OnVolumeChanged(float _volume, bool _mute)
+        {
+            Debug.WriteLine("OnVolumeChanged(...) " + _volume + " " + _mute + " " + this.DisplayName );
+
+            int volumeLevel = -1;
+            //if( this.volume!=_volume)
+            {
+                this.volume = _volume;
+
+                if (!isDeviceSession)
+                {
+                    volumeLevel = (int)(Math.Round(volume * Device.AudioEndpointVolume.MasterVolumeLevelScalar * 100));
+                }
+                else
+                {
+                    volumeLevel = (int)(Math.Round(Device.AudioEndpointVolume.MasterVolumeLevelScalar * 100));
+                }
+            }
+
+            //if(_mute!= this.mute)
+            {
+                this.mute = _mute;
+
+               // MuteChanged?.Invoke(null, new MuteEventArgs(this.mute));
+            }
+
+            VolumeChanged?.Invoke(volumeLevel, _mute);
 
         }
 
@@ -333,6 +617,7 @@ namespace VlcTest
         {
             Debug.WriteLine("OnDisplayNameChanged(...) " + displayName);
 
+            this.DisplayName = displayName;
 
         }
 
@@ -352,19 +637,26 @@ namespace VlcTest
         {
             Debug.WriteLine("OnGroupingParamChanged(...) " + groupingId);
 
+            this.GroupingParams = groupingId;
+
+
         }
 
         public void OnStateChanged(NAudio.CoreAudioApi.Interfaces.AudioSessionState state)
         {
-            Debug.WriteLine("OnGroupingOnStateChangedParamChanged(...) " + state);
+            Debug.WriteLine("OnGroupingOnStateChangedParamChanged(...) " + state + " " + this.DisplayName);
+
+            IsEnabled = state != (AudioSessionState.AudioSessionStateExpired);
 
         }
+
 
         public void OnSessionDisconnected(NAudio.CoreAudioApi.Interfaces.AudioSessionDisconnectReason disconnectReason)
         {
             Debug.WriteLine("OnSessionDisconnected(...) " + disconnectReason);
-        }
 
+            this.CleanUp();
+        }
     }
 
 

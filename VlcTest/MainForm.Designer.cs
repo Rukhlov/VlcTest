@@ -432,7 +432,7 @@
             // 
             // button7
             // 
-            this.button7.Location = new System.Drawing.Point(497, 504);
+            this.button7.Location = new System.Drawing.Point(562, 504);
             this.button7.Name = "button7";
             this.button7.Size = new System.Drawing.Size(75, 23);
             this.button7.TabIndex = 42;
@@ -442,7 +442,7 @@
             // 
             // trackBar1
             // 
-            this.trackBar1.Location = new System.Drawing.Point(362, 504);
+            this.trackBar1.Location = new System.Drawing.Point(427, 504);
             this.trackBar1.Maximum = 100;
             this.trackBar1.Name = "trackBar1";
             this.trackBar1.Size = new System.Drawing.Size(129, 42);
@@ -454,7 +454,7 @@
             // label3
             // 
             this.label3.AutoSize = true;
-            this.label3.Location = new System.Drawing.Point(401, 480);
+            this.label3.Location = new System.Drawing.Point(466, 480);
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(35, 13);
             this.label3.TabIndex = 44;
@@ -501,6 +501,8 @@
             this.trackBar2.TickFrequency = 10;
             this.trackBar2.Value = 100;
             this.trackBar2.Scroll += new System.EventHandler(this.trackBar2_Scroll);
+            this.trackBar2.MouseDown += new System.Windows.Forms.MouseEventHandler(this.trackBar2_MouseDown);
+            this.trackBar2.MouseUp += new System.Windows.Forms.MouseEventHandler(this.trackBar2_MouseUp);
             // 
             // checkBoxMute2
             // 

@@ -972,7 +972,7 @@ namespace VlcTest
         }
 
 
-        AudioVolumeManager audioVolumeManager = null;
+        AudioMixerManager audioVolumeManager = null;
         private void button8_Click(object sender, EventArgs e)
         {
             if (audioVolumeManager != null)
@@ -980,18 +980,18 @@ namespace VlcTest
                 
             }
 
-            audioVolumeManager = new AudioVolumeManager();
+            audioVolumeManager = new AudioMixerManager();
 
             if (audioVolumeManager != null)
             {
                 audioVolumeManager.Update();
 
-                var audioSessions = audioVolumeManager.Session;
+                var items = audioVolumeManager.Items;
 
-                if (audioSessions.Count > 0)
+                if (items.Count > 0)
                 {
-                    audioSessionsComboBox.DataSource = audioSessions;
-                    audioSessionsComboBox.DisplayMember = "DisplayName";
+                    audioSessionsComboBox.DataSource = items;
+                    audioSessionsComboBox.DisplayMember = "Name";
                     audioSessionsComboBox.Refresh();
                 }
 
@@ -999,38 +999,69 @@ namespace VlcTest
 
 
         }
-        private AudioVolumeController audioSessionController = null;
+        private AudioMixerItem mixerItem = null;
 
         private void audioSessionsComboBox_SelectedValueChanged(object sender, EventArgs e)
         {
             var selectedValue = audioSessionsComboBox.SelectedValue;
             if (selectedValue != null)
             {
-                if (audioSessionController != null)
+                if (mixerItem != null)
                 {
-                    audioSessionController.VolumeChanged -= AudioSessionController_VolumeChanged;
-                }
-                audioSessionController = selectedValue as AudioVolumeController;
+                    mixerItem.VolumeChanged -= mixerItem_VolumeChanged;
+                    mixerItem.MuteChanged -= mixerItem_MuteChanged;
 
-                if (audioSessionController != null)
+
+                }
+                mixerItem = selectedValue as AudioMixerItem;
+
+                if (mixerItem != null)
                 {
-                    audioSessionController.VolumeChanged += AudioSessionController_VolumeChanged;
+                   // mixerItem.Setup();
+                    mixerItem.VolumeChanged += mixerItem_VolumeChanged;
+                    mixerItem.MuteChanged += mixerItem_MuteChanged;
+
+                    trackBar2.Value = mixerItem.Volume;
+                    checkBoxMute2.Checked = mixerItem.Mute;
                 }
             }
 
-           // audioSessionController = 
         }
 
-        private void AudioSessionController_VolumeChanged(object sender, VolumeEventArgs e)
+
+
+        private void mixerItem_VolumeChanged(int volume)
         {
-            
+
             //var vol = (trackBar2.Maximum - trackBar2.Minimum) * e.Volume;
 
+            if (!trackBar2MouseDown)
+            {
+                trackBar2.Invoke(new Action(
+                    () => 
+                    {
+                        trackBar2.Value = volume;
+                    }));
+            }
+
         }
+
+        private void mixerItem_MuteChanged(bool mute)
+        {
+
+            checkBoxMute2.Invoke(new Action(
+                    () =>
+                    {
+                        checkBoxMute2.Checked = mute;
+                    }));
+
+        }
+
+
 
         private void checkBoxMute2_CheckedChanged(object sender, EventArgs e)
         {
-            var controller = audioSessionController;
+            var controller = mixerItem;
             if (controller != null)
             {
                 controller.Mute = checkBoxMute2.Checked;
@@ -1042,15 +1073,26 @@ namespace VlcTest
         private void trackBar2_Scroll(object sender, EventArgs e)
         {
            var volume = trackBar2.Value / 100.0f;
-            var controller = audioSessionController;
+            var controller = mixerItem;
             if (controller != null)
             {
-                controller.Volume = volume;
+                controller.Volume = trackBar2.Value;
             }
 
         }
+        private bool trackBar2MouseDown = false;
+        private void trackBar2_MouseDown(object sender, MouseEventArgs e)
+        {
+            trackBar2MouseDown = true;
+        }
 
-  
+        private void trackBar2_MouseUp(object sender, MouseEventArgs e)
+        {
+
+            trackBar2MouseDown = false;
+
+        }
+
 
 
 
@@ -1075,12 +1117,12 @@ namespace VlcTest
 
     public class VolumeEventArgs : EventArgs
     {
-        public VolumeEventArgs(float volume)
+        public VolumeEventArgs(int volume)
         {
             Volume = volume;
         }
 
-        public float Volume { get; private set; }
+        public int Volume { get; private set; }
     }
 
 
