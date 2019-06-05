@@ -10,6 +10,7 @@ using System.Linq;
 
 using VlcContracts;
 using System.Drawing;
+using System.Collections.Generic;
 
 namespace VlcTest
 {
@@ -906,16 +907,57 @@ namespace VlcTest
 
         }
 
-        TransparentForm f = null;
+        class ScreenItem
+        {
+            public string Caption { get; set; }
+            public Screen Screen { get; set; }
+
+        }
+
+
+        private TransparentForm f = null;
         private void button7_Click(object sender, EventArgs e)
         {
 
-            Screen screen = null;
-            var screens = Screen.AllScreens;
-            if (screens.Length > 1)
+            var allscreens = Screen.AllScreens;
+
+            List<ScreenItem> items = new List<ScreenItem>();
+            if (allscreens != null)
             {
-                screen = screens.FirstOrDefault(s => !s.Primary);
+                items.Add(new ScreenItem { Caption = "None" });
+                foreach (var s in allscreens)
+                {
+                    items.Add(new ScreenItem { Caption = s.DeviceName, Screen = s });
+                }
             }
+
+            comboBox1.DisplayMember = "Caption";
+            comboBox1.DataSource = items;
+
+            //FadeScreen();
+
+        }
+
+        private void FadeScreen(Screen screen)
+        {
+            if (screen == null)
+            {
+                if(f != null)
+                {
+                    f.Visible = false;         
+                }
+
+                return;
+            }
+
+
+            //Screen screen = null;
+            //var screens = Screen.AllScreens;
+            //if (screens.Length > 1)
+            //{
+            //    screen = screens.FirstOrDefault(s => !s.Primary);
+            //}
+
 
             Rectangle bounds = screen?.WorkingArea ?? new Rectangle(10, 10, 100, 100);
 
@@ -926,7 +968,7 @@ namespace VlcTest
                 f.BackColor = System.Drawing.Color.Black;
                 f.FormBorderStyle = FormBorderStyle.None;
                 f.StartPosition = FormStartPosition.Manual;
-                f.Bounds = bounds;
+                //f.Bounds = bounds;
                 //f.Owner = this;
                 f.ShowInTaskbar = false;
                 f.TopMost = true;
@@ -934,11 +976,27 @@ namespace VlcTest
 
             if (f != null)
             {
+                f.Bounds = bounds;
                 var opacity = f.Opacity * (trackBar1.Maximum - trackBar1.Minimum);
 
                 trackBar1.Value = (int)opacity;
 
-                f.Visible = !f.Visible;
+                f.Visible = true;//!f.Visible;
+            }
+        }
+
+        private void comboBox1_SelectedValueChanged(object sender, EventArgs e)
+        {
+            var obj = comboBox1.SelectedItem;
+
+            if (obj != null)
+            {
+                ScreenItem screenitem = obj as ScreenItem;
+
+                var screen = screenitem?.Screen;
+                FadeScreen(screen);
+
+
             }
 
         }
@@ -965,6 +1023,10 @@ namespace VlcTest
 
             }
         }
+
+
+
+
 
         private void MainForm_Load(object sender, EventArgs e)
         {
@@ -1028,6 +1090,15 @@ namespace VlcTest
 
         }
 
+
+        private void mixerResetButton_Click(object sender, EventArgs e)
+        {
+
+            if (audioVolumeManager != null)
+            {
+                audioVolumeManager.Reset();
+            }
+        }
 
 
         private void mixerItem_VolumeChanged(int volume)
@@ -1097,6 +1168,11 @@ namespace VlcTest
 
 
         private void audioSessionsComboBox_SelectedIndexChanged(object sender, EventArgs e)
+        {
+
+        }
+
+        private void comboBox1_SelectedIndexChanged(object sender, EventArgs e)
         {
 
         }

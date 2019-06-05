@@ -69,6 +69,8 @@
             this.audioSessionsComboBox = new System.Windows.Forms.ComboBox();
             this.trackBar2 = new System.Windows.Forms.TrackBar();
             this.checkBoxMute2 = new System.Windows.Forms.CheckBox();
+            this.comboBox1 = new System.Windows.Forms.ComboBox();
+            this.mixerResetButton = new System.Windows.Forms.Button();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarPosition)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarVolume)).BeginInit();
             ((System.ComponentModel.ISupportInitialize)(this.trackBarBlur)).BeginInit();
@@ -432,20 +434,21 @@
             // 
             // button7
             // 
-            this.button7.Location = new System.Drawing.Point(562, 504);
+            this.button7.Location = new System.Drawing.Point(465, 543);
             this.button7.Name = "button7";
             this.button7.Size = new System.Drawing.Size(75, 23);
             this.button7.TabIndex = 42;
-            this.button7.Text = "button7";
+            this.button7.Text = "Update";
             this.button7.UseVisualStyleBackColor = true;
             this.button7.Click += new System.EventHandler(this.button7_Click);
             // 
             // trackBar1
             // 
-            this.trackBar1.Location = new System.Drawing.Point(427, 504);
+            this.trackBar1.AutoSize = false;
+            this.trackBar1.Location = new System.Drawing.Point(330, 574);
             this.trackBar1.Maximum = 100;
             this.trackBar1.Name = "trackBar1";
-            this.trackBar1.Size = new System.Drawing.Size(129, 42);
+            this.trackBar1.Size = new System.Drawing.Size(210, 18);
             this.trackBar1.TabIndex = 43;
             this.trackBar1.TickFrequency = 10;
             this.trackBar1.Value = 100;
@@ -454,7 +457,7 @@
             // label3
             // 
             this.label3.AutoSize = true;
-            this.label3.Location = new System.Drawing.Point(466, 480);
+            this.label3.Location = new System.Drawing.Point(289, 574);
             this.label3.Name = "label3";
             this.label3.Size = new System.Drawing.Size(35, 13);
             this.label3.TabIndex = 44;
@@ -471,7 +474,7 @@
             // 
             // button8
             // 
-            this.button8.Location = new System.Drawing.Point(146, 480);
+            this.button8.Location = new System.Drawing.Point(146, 542);
             this.button8.Name = "button8";
             this.button8.Size = new System.Drawing.Size(75, 23);
             this.button8.TabIndex = 45;
@@ -483,7 +486,7 @@
             // 
             this.audioSessionsComboBox.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
             this.audioSessionsComboBox.FormattingEnabled = true;
-            this.audioSessionsComboBox.Location = new System.Drawing.Point(12, 480);
+            this.audioSessionsComboBox.Location = new System.Drawing.Point(12, 542);
             this.audioSessionsComboBox.Name = "audioSessionsComboBox";
             this.audioSessionsComboBox.Size = new System.Drawing.Size(121, 21);
             this.audioSessionsComboBox.TabIndex = 46;
@@ -493,7 +496,7 @@
             // trackBar2
             // 
             this.trackBar2.AutoSize = false;
-            this.trackBar2.Location = new System.Drawing.Point(12, 509);
+            this.trackBar2.Location = new System.Drawing.Point(12, 571);
             this.trackBar2.Maximum = 100;
             this.trackBar2.Name = "trackBar2";
             this.trackBar2.Size = new System.Drawing.Size(209, 18);
@@ -507,7 +510,7 @@
             // checkBoxMute2
             // 
             this.checkBoxMute2.AutoSize = true;
-            this.checkBoxMute2.Location = new System.Drawing.Point(13, 534);
+            this.checkBoxMute2.Location = new System.Drawing.Point(12, 595);
             this.checkBoxMute2.Name = "checkBoxMute2";
             this.checkBoxMute2.Size = new System.Drawing.Size(50, 17);
             this.checkBoxMute2.TabIndex = 48;
@@ -516,11 +519,34 @@
             this.checkBoxMute2.UseVisualStyleBackColor = true;
             this.checkBoxMute2.CheckedChanged += new System.EventHandler(this.checkBoxMute2_CheckedChanged);
             // 
+            // comboBox1
+            // 
+            this.comboBox1.DropDownStyle = System.Windows.Forms.ComboBoxStyle.DropDownList;
+            this.comboBox1.FormattingEnabled = true;
+            this.comboBox1.Location = new System.Drawing.Point(292, 542);
+            this.comboBox1.Name = "comboBox1";
+            this.comboBox1.Size = new System.Drawing.Size(167, 21);
+            this.comboBox1.TabIndex = 49;
+            this.comboBox1.SelectedIndexChanged += new System.EventHandler(this.comboBox1_SelectedIndexChanged);
+            this.comboBox1.SelectedValueChanged += new System.EventHandler(this.comboBox1_SelectedValueChanged);
+            // 
+            // mixerResetButton
+            // 
+            this.mixerResetButton.Location = new System.Drawing.Point(115, 605);
+            this.mixerResetButton.Name = "mixerResetButton";
+            this.mixerResetButton.Size = new System.Drawing.Size(75, 23);
+            this.mixerResetButton.TabIndex = 50;
+            this.mixerResetButton.Text = "Reset";
+            this.mixerResetButton.UseVisualStyleBackColor = true;
+            this.mixerResetButton.Click += new System.EventHandler(this.mixerResetButton_Click);
+            // 
             // MainForm
             // 
             this.AutoScaleDimensions = new System.Drawing.SizeF(6F, 13F);
             this.AutoScaleMode = System.Windows.Forms.AutoScaleMode.Font;
-            this.ClientSize = new System.Drawing.Size(779, 558);
+            this.ClientSize = new System.Drawing.Size(779, 640);
+            this.Controls.Add(this.mixerResetButton);
+            this.Controls.Add(this.comboBox1);
             this.Controls.Add(this.checkBoxMute2);
             this.Controls.Add(this.trackBar2);
             this.Controls.Add(this.audioSessionsComboBox);
@@ -621,6 +647,8 @@
         private System.Windows.Forms.ComboBox audioSessionsComboBox;
         private System.Windows.Forms.TrackBar trackBar2;
         private System.Windows.Forms.CheckBox checkBoxMute2;
+        private System.Windows.Forms.ComboBox comboBox1;
+        private System.Windows.Forms.Button mixerResetButton;
     }
 }
 

@@ -95,6 +95,20 @@ namespace VlcTest
             }
         }
 
+        public void Reset()
+        {
+            if(Items!=null && Items.Count > 0)
+            {
+                foreach(var item in Items)
+                {
+
+                    item.Reset();
+                }
+
+            }
+
+        }
+
         private void DeviceSession_VolumeChanged(int _volume, bool _mute )
         {
             Debug.WriteLine("DeviceSession_VolumeChanged(...) " + _volume + " " + _mute);
@@ -270,6 +284,13 @@ namespace VlcTest
             }
         }
 
+        public void Reset()
+        {
+            foreach (var sess in sessions)
+            {
+                sess.Reset();
+            }
+        }
 
         public void Dispose()
         {
@@ -314,7 +335,12 @@ namespace VlcTest
 
         public int ProcessId { get; private set; } = -1;
 
+        /// <summary>
+        /// https://docs.microsoft.com/ru-ru/windows/desktop/CoreAudio/grouping-parameters
+        /// </summary>
         public Guid GroupingParams { get; private set; } = Guid.Empty;
+
+
         public string DisplayName { get; private set; } = "";
 
         private bool mute = false;
@@ -330,7 +356,7 @@ namespace VlcTest
                 if (mute != value)
                 {
                     bool _mute = value;
-                   // mute = value;
+                    mute = value;
 
                     if (!isDeviceSession)
                     {
@@ -362,12 +388,12 @@ namespace VlcTest
             {
                 if (volume != value)
                 {
-                    //volume = value;
+                    volume = value;
 
-                    float _volume = value;
+                    //float _volume = value;
                     if (!isDeviceSession)
                     {
-                        var newVolume = _volume / Device.AudioEndpointVolume.MasterVolumeLevelScalar;
+                        var newVolume = volume / Device.AudioEndpointVolume.MasterVolumeLevelScalar;
 
                         if (newVolume <= 1)
                         {
@@ -375,14 +401,14 @@ namespace VlcTest
                         }
                         else
                         {
-                            Device.AudioEndpointVolume.MasterVolumeLevelScalar = _volume;
+                            Device.AudioEndpointVolume.MasterVolumeLevelScalar = volume;
                             session.SimpleAudioVolume.Volume = 1;
                         }
                         session.SimpleAudioVolume.Mute = false;
                     }
                     else
                     {
-                        Device.AudioEndpointVolume.MasterVolumeLevelScalar = _volume;
+                        Device.AudioEndpointVolume.MasterVolumeLevelScalar = volume;
                     }
 
                     Device.AudioEndpointVolume.Mute = false;
@@ -428,6 +454,26 @@ namespace VlcTest
             {
                 //...
             }
+        }
+
+        public void Reset()
+        {
+
+            if (!float.IsNaN(ExternalVolume))
+            {
+                var diff = Math.Abs(this.Volume - ExternalVolume);
+
+                if (diff > 0.01)
+                {
+                    this.Volume = this.ExternalVolume;
+                }
+            }
+
+            if(this.Mute!= ExternalMute)
+            {
+                this.Mute = ExternalMute;
+            }
+
         }
 
         public void Setup()
@@ -529,6 +575,9 @@ namespace VlcTest
                 mute = session.SimpleAudioVolume.Mute;
                 volume = session.SimpleAudioVolume.Volume;
 
+                this.ExternalVolume = volume;
+                this.ExternalMute = mute;
+
                 session.RegisterEventClient(this);
 
             }
@@ -541,6 +590,10 @@ namespace VlcTest
 
                 mute = this.Device.AudioEndpointVolume.Mute;
                 volume = Device.AudioEndpointVolume.MasterVolumeLevelScalar;
+
+
+                this.ExternalVolume = volume;
+                this.ExternalMute = mute;
             }
         }
 
@@ -569,41 +622,97 @@ namespace VlcTest
 
             if (isDeviceSession)
             {
+
+                //...
+                var _volume = data.MasterVolume;
+
+                if (this.volume < 0 || _volume < 0)
+                {
+                    //...
+                    //х.з возможно ли такое 
+                    Debug.WriteLine("!!!!!!!!!!!!!!!!!!!!! " + this.volume + "  " + _volume);
+                }
+
+                var diff = Math.Abs(this.volume - _volume);
+
+                if (diff > 0.01) //(this.volume != _volume)
+                {// Если мы сюда попали то - звук был изменен извне Sndvol
+                    Debug.WriteLine(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>  " + this.volume + " != " + _volume);
+                    this.volume = _volume;
+
+                    //this.ExternalVolume = this.volume;
+
+                }
+
+
+
+                var _mute = data.Muted;
+
+                if (this.mute != _mute)
+                {
+                    this.mute = _mute;
+
+                    //this.ExternalMute = this.mute;
+                }
+
+                Debug.WriteLine("!!!!!!!!!!!!!!! AudioEndpointVolume_OnVolumeNotification(...) " + isDeviceSession);
+
                 OnVolumeChanged(data.MasterVolume, data.Muted);
 
             }
             else
             {
-                //...
-                Debug.WriteLine("!!!!!!!!!!!!!!! AudioEndpointVolume_OnVolumeNotification(...) " + isDeviceSession);
+
             }
         }
 
 
         public event Action<int, bool> VolumeChanged;
 
+        public float ExternalVolume { get; private set; } = float.NaN;
+        public bool ExternalMute { get; private set; } = false;
+
         public void OnVolumeChanged(float _volume, bool _mute)
         {
             Debug.WriteLine("OnVolumeChanged(...) " + _volume + " " + _mute + " " + this.DisplayName );
 
             int volumeLevel = -1;
-            //if( this.volume!=_volume)
-            {
-                this.volume = _volume;
 
-                if (!isDeviceSession)
-                {
-                    volumeLevel = (int)(Math.Round(volume * Device.AudioEndpointVolume.MasterVolumeLevelScalar * 100));
-                }
-                else
-                {
-                    volumeLevel = (int)(Math.Round(Device.AudioEndpointVolume.MasterVolumeLevelScalar * 100));
-                }
+            if(this.volume < 0 || _volume < 0)
+            {
+                //...
+                //х.з возможно ли такое 
+                Debug.WriteLine("!!!!!!!!!!!!!!!!!!!!! " + this.volume + "  " + _volume);
             }
 
-            //if(_mute!= this.mute)
+            var diff = Math.Abs(this.volume - _volume);
+
+            if ( diff > 0.01) //(this.volume != _volume)
+            {// Если мы сюда попали то - звук был изменен извне Sndvol
+                Debug.WriteLine(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>  " + this.volume + " != " + _volume);
+                this.volume = _volume;
+
+               //this.ExternalVolume = this.volume;
+            }
+
+            if (!isDeviceSession)
             {
+                volumeLevel = (int)(Math.Round(volume * Device.AudioEndpointVolume.MasterVolumeLevelScalar * 100));
+            }
+            else
+            {
+                volumeLevel = (int)(Math.Round(Device.AudioEndpointVolume.MasterVolumeLevelScalar * 100));
+            }
+            
+
+            if(this.mute!=_mute)
+            {
+
+                Debug.WriteLine(">>>>>>>>>>>>>>>>>>>>>>>>>>>>> " + this.mute + " != " + _mute);
+
                 this.mute = _mute;
+
+               // this.ExternalMute = this.mute;
 
                // MuteChanged?.Invoke(null, new MuteEventArgs(this.mute));
             }
